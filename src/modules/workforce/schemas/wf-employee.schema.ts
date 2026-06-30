@@ -86,4 +86,3 @@ export class WfEmployee {
 
 export const WfEmployeeSchema = SchemaFactory.createForClass(WfEmployee);
 WfEmployeeSchema.index({ assignedProjectId: 1, currentStatus: 1 });
-WfEmployeeSchema.index({ employeeId: 1 });

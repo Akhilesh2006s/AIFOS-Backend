@@ -34,5 +34,4 @@ export class PlatformRole {
 }
 
 export const PlatformRoleSchema = SchemaFactory.createForClass(PlatformRole);
-PlatformRoleSchema.index({ key: 1 });
 PlatformRoleSchema.index({ enabled: 1, isDeleted: 1 });

@@ -40,7 +40,7 @@ export class FinPayment {
   @Prop({ required: true, unique: true })
   paymentNumber: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true })
   vendorBillId: string;
 
   @Prop({ required: true, index: true })

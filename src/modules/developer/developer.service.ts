@@ -152,7 +152,7 @@ export class DeveloperService implements OnModuleInit {
           date,
           endpoint: 'api',
           requests: 0,
-          errors: 0,
+          errorCount: 0,
           avgLatencyMs: 0,
           environment: i % 2 === 0 ? 'sandbox' : 'production',
         });
@@ -472,7 +472,7 @@ export class DeveloperService implements OnModuleInit {
     const trend = records.map((r) => ({
       date: r.date,
       requests: r.requests,
-      errors: r.errors,
+      errors: r.errorCount,
       avgLatencyMs: r.avgLatencyMs,
     }));
 
@@ -482,7 +482,7 @@ export class DeveloperService implements OnModuleInit {
     }, {} as Record<string, number>);
 
     const totalRequests = records.reduce((s, r) => s + r.requests, 0);
-    const totalErrors = records.reduce((s, r) => s + r.errors, 0);
+    const totalErrors = records.reduce((s, r) => s + r.errorCount, 0);
     const avgLatency = records.length
       ? Math.round(records.reduce((s, r) => s + r.avgLatencyMs, 0) / records.length)
       : 0;

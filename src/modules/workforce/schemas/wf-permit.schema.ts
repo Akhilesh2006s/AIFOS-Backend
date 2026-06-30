@@ -165,6 +165,5 @@ export class WfPermit {
 
 export const WfPermitSchema = SchemaFactory.createForClass(WfPermit);
 WfPermitSchema.index({ projectId: 1, status: 1 });
-WfPermitSchema.index({ permitNumber: 1 });
 WfPermitSchema.index({ permitType: 1, riskLevel: 1 });
 WfPermitSchema.index({ endAt: 1, status: 1 });

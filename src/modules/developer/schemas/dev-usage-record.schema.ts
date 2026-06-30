@@ -24,7 +24,7 @@ export class DevUsageRecord {
   requests: number;
 
   @Prop({ default: 0 })
-  errors: number;
+  errorCount: number;
 
   @Prop({ default: 0 })
   avgLatencyMs: number;

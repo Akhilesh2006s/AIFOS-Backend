@@ -25,5 +25,4 @@ export class ParentCompany {
 }
 
 export const ParentCompanySchema = SchemaFactory.createForClass(ParentCompany);
-ParentCompanySchema.index({ code: 1 });
 ParentCompanySchema.index({ status: 1, isDeleted: 1 });
