@@ -39,6 +39,7 @@ import { ExplorerModule } from './modules/explorer/explorer.module';
 import { CacheModule } from './common/cache/cache.module';
 import { JobsModule } from './common/jobs/jobs.module';
 import { SecurityAuditInterceptor } from './common/interceptors/security-audit.interceptor';
+import { resolveMongoUri } from './common/config/mongo-uri';
 
 @Module({
   imports: [
@@ -55,7 +56,12 @@ import { SecurityAuditInterceptor } from './common/interceptors/security-audit.i
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGO_URI'),
+        uri: resolveMongoUri({
+          MONGO_URI: config.get<string>('MONGO_URI'),
+          MONGODB_URI: config.get<string>('MONGODB_URI'),
+          MONGO_URL: config.get<string>('MONGO_URL'),
+          DATABASE_URL: config.get<string>('DATABASE_URL'),
+        }),
         serverSelectionTimeoutMS: 15000,
         socketTimeoutMS: 45000,
         maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 50),
