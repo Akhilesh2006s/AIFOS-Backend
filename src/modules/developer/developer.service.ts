@@ -167,22 +167,59 @@ export class DeveloperService implements OnModuleInit {
     let license = await this.licenseModel.findOne({ organizationId: orgId });
     if (!license) {
       const tier = LICENSE_TIERS.starter;
-      license = await this.licenseModel.create({
-        organizationId: orgId,
-        tier: 'starter',
-        maxApplications: tier.maxApplications,
-        maxApiKeys: tier.maxApiKeys,
-        maxRequestsPerDay: tier.maxRequestsPerDay,
-        features: [...tier.features],
-        status: 'active',
-      });
+      try {
+        license = await this.licenseModel.create({
+          organizationId: orgId,
+          tier: 'starter',
+          maxApplications: tier.maxApplications,
+          maxApiKeys: tier.maxApiKeys,
+          maxRequestsPerDay: tier.maxRequestsPerDay,
+          features: [...tier.features],
+          status: 'active',
+        });
+      } catch {
+        const [appCount, keyCount, todayUsage] = await Promise.all([
+          this.appModel.countDocuments({ organizationId: orgId, status: 'active' }),
+          this.keyModel.countDocuments({ organizationId: orgId, enabled: true }),
+          this.getTodayRequestCount(orgId),
+        ]);
+        return this.formatLicenseResponse(
+          orgId,
+          {
+            tier: 'starter',
+            maxApplications: tier.maxApplications,
+            maxApiKeys: tier.maxApiKeys,
+            maxRequestsPerDay: tier.maxRequestsPerDay,
+            features: [...tier.features],
+            status: 'active',
+          },
+          { appCount, keyCount, todayUsage },
+        );
+      }
     }
-    const tierConfig = LICENSE_TIERS[license.tier as keyof typeof LICENSE_TIERS] || LICENSE_TIERS.starter;
     const [appCount, keyCount, todayUsage] = await Promise.all([
       this.appModel.countDocuments({ organizationId: orgId, status: 'active' }),
       this.keyModel.countDocuments({ organizationId: orgId, enabled: true }),
       this.getTodayRequestCount(orgId),
     ]);
+    return this.formatLicenseResponse(orgId, license, { appCount, keyCount, todayUsage });
+  }
+
+  private formatLicenseResponse(
+    orgId: string,
+    license: {
+      tier: string;
+      maxApplications: number;
+      maxApiKeys: number;
+      maxRequestsPerDay: number;
+      features: string[];
+      status: string;
+      validUntil?: Date;
+    },
+    usage: { appCount: number; keyCount: number; todayUsage: number },
+  ) {
+    const tierConfig = LICENSE_TIERS[license.tier as keyof typeof LICENSE_TIERS] || LICENSE_TIERS.starter;
+    const { appCount, keyCount, todayUsage } = usage;
     return {
       organizationId: orgId,
       tier: license.tier,
@@ -228,7 +265,7 @@ export class DeveloperService implements OnModuleInit {
       this.appModel.find({ organizationId: orgId }).sort({ createdAt: -1 }),
       this.keyModel.find({ organizationId: orgId }).sort({ createdAt: -1 }),
       this.getUsageAnalytics(orgId),
-      this.integrations.getApiAnalytics(),
+      this.integrations.getApiAnalytics().catch(() => ({ kpis: {} })),
     ]);
     return {
       license,

@@ -191,12 +191,12 @@ export class MissionControlService {
     const erpSync = await this.integrations.getErpSyncMetrics();
     const deviceHealth = await this.integrations.getDeviceHealthMetrics();
     const communication = await this.integrations.getCommMetrics();
-    const platformAdmin = await this.admin.getOperationsMetrics();
+    const platformAdmin = await this.safeMetric('platformAdmin', () => this.admin.getOperationsMetrics());
     const organizationSelector = await this.platform.getOperationsMetrics();
     const regionDashboard = await this.globalEnterprise.getRegionDashboardMetrics();
     const brandPreview = await this.whitelabel.getOperationsMetrics();
     const marketplace = await this.marketplace.getOperationsMetrics();
-    const developer = await this.developer.getOperationsMetrics();
+    const developer = await this.safeMetric('developer', () => this.developer.getOperationsMetrics());
 
     return {
       persona,
@@ -451,6 +451,17 @@ export class MissionControlService {
       }),
     );
     return healthList.sort((a, b) => a.healthScore - b.healthScore);
+  }
+
+  private async safeMetric<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[mission-control] ${label} metrics unavailable`, err);
+      }
+      return undefined;
+    }
   }
 
   async search(q: string) {
