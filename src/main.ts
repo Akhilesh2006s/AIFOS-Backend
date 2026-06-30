@@ -1,0 +1,91 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as dns from 'dns';
+import helmet from 'helmet';
+import compression from 'compression';
+import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+
+dns.setDefaultResultOrder('ipv4first');
+
+async function bootstrap() {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be set (minimum 32 characters) before starting the API');
+  }
+
+  const app = await NestFactory.create(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProd ? undefined : false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      hsts: isProd ? { maxAge: 31_536_000, includeSubDomains: true, preload: true } : false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      frameguard: { action: 'deny' },
+    }),
+  );
+  app.use(compression());
+
+  app.setGlobalPrefix('api/v1');
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+      stopAtFirstError: true,
+    }),
+  );
+
+  const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin || corsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Not allowed by CORS'), false);
+    },
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Organization-Id'],
+    exposedHeaders: ['Content-Disposition'],
+    maxAge: 86_400,
+  });
+
+  if (!isProd || process.env.ENABLE_SWAGGER === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('AFIOS API')
+      .setDescription('Amenity Forge Infrastructure Operating System — REST API for projects, supply chain, assets, integrations, marketplace, and developer platform.')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addApiKey({ type: 'apiKey', name: 'X-API-Key', in: 'header' }, 'api-key')
+      .addTag('Developer Platform', 'OAuth apps, API keys, sandbox, SDK docs')
+      .addTag('Marketplace', 'Extension catalog, install, publish')
+      .addTag('Enterprise Platform', 'Multi-org, regional, white-label')
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
+
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  console.log(`AFIOS API running on http://localhost:${port}`);
+  if (!isProd || process.env.ENABLE_SWAGGER === 'true') {
+    console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  }
+}
+
+bootstrap();
