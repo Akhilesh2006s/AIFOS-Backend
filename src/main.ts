@@ -85,10 +85,10 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
+  const port = Number(process.env.PORT) || 3001;
+  await app.listen(port, '0.0.0.0');
   if (isProd) {
-    console.log(`AFIOS API listening on port ${port}`);
+    console.log(`AFIOS API listening on 0.0.0.0:${port}`);
   } else {
     console.log(`AFIOS API running on http://localhost:${port}`);
     if (process.env.ENABLE_SWAGGER === 'true') {
@@ -97,4 +97,7 @@ async function bootstrap() {
   }
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('AFIOS API failed to start:', err instanceof Error ? err.message : err);
+  process.exit(1);
+});
