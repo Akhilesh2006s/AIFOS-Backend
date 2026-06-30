@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { isProductionRuntime } from './common/config/runtime-env';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -14,10 +15,11 @@ async function bootstrap() {
     throw new Error('JWT_SECRET must be set (minimum 32 characters) before starting the API');
   }
 
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = isProductionRuntime();
 
   const app = await NestFactory.create(AppModule, {
     logger: isProd ? ['error', 'warn'] : undefined,
+    bufferLogs: isProd,
   });
 
   app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
@@ -85,9 +87,13 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`AFIOS API running on http://localhost:${port}`);
-  if (!isProd || process.env.ENABLE_SWAGGER === 'true') {
-    console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  if (isProd) {
+    console.log(`AFIOS API listening on port ${port}`);
+  } else {
+    console.log(`AFIOS API running on http://localhost:${port}`);
+    if (process.env.ENABLE_SWAGGER === 'true') {
+      console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+    }
   }
 }
 

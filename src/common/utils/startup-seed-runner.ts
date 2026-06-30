@@ -10,6 +10,18 @@ export function isMongoDuplicateKeyError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
 }
 
+export function isMongoCollectionLimitError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const e = err as { code?: number; codeName?: string; message?: string };
+  if (e.code === 8000 && e.codeName === 'AtlasError') return true;
+  const msg = e.message ?? (err instanceof Error ? err.message : '');
+  return /already using \d+ collections/i.test(msg);
+}
+
+export function isMongoSeedSkippableError(err: unknown): boolean {
+  return isMongoDuplicateKeyError(err) || isMongoCollectionLimitError(err);
+}
+
 /** Run module seed on startup without crashing the app or dumping Mongoose documents. */
 export async function runStartupSeed(
   logger: Logger,
@@ -22,6 +34,10 @@ export async function runStartupSeed(
   } catch (err) {
     if (isMongoDuplicateKeyError(err)) {
       logger.warn(`${label} seed: data already exists`);
+      return;
+    }
+    if (isMongoCollectionLimitError(err)) {
+      logger.warn(`${label} seed skipped: MongoDB collection limit reached`);
       return;
     }
     logger.warn(`${label} seed skipped: ${seedErrorMessage(err)}`);

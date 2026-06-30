@@ -18,6 +18,7 @@ import {
   BroadcastDto, CreateCampaignDto, CreateCommRuleDto, CreateTemplateDto,
   SendMessageDto, UpdateCommRuleDto, UpdateTemplateDto,
 } from './dto/comm.dto';
+import { isMongoSeedSkippableError, seedErrorMessage } from '../../common/utils/startup-seed-runner';
 
 @Injectable()
 export class CommunicationService {
@@ -120,8 +121,16 @@ export class CommunicationService {
       { name: 'Teams Compliance Alert', channel: 'teams', body: 'Compliance alert: {{description}} — Project {{projectId}}', eventTypes: ['compliance.alert'] },
       { name: 'Slack Maintenance Notice', channel: 'slack', body: 'Maintenance completed on equipment. Project: {{projectId}}. Details: {{description}}', eventTypes: ['maintenance.completed'] },
     ];
-    await this.templateModel.insertMany(defaults);
-    return { seeded: defaults.length };
+    try {
+      await this.templateModel.insertMany(defaults, { ordered: false });
+      return { seeded: defaults.length };
+    } catch (err) {
+      if (isMongoSeedSkippableError(err)) {
+        this.logger.warn(`Comm templates seed skipped: ${seedErrorMessage(err)}`);
+        return { seeded: 0, skipped: true };
+      }
+      throw err;
+    }
   }
 
   async listRules() {

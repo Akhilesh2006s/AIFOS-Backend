@@ -34,7 +34,9 @@ export class BekemEnterpriseSeedService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     if (!isEnterpriseSeedEnabled()) return;
-    setTimeout(() => this.run().catch((e) => this.logger.error(e)), 12_000);
+    setTimeout(() => this.run().catch((e) => {
+      this.logger.warn(`Enterprise seed skipped: ${e instanceof Error ? e.message : e}`);
+    }), 12_000);
   }
 
   private rand(min: number, max: number) {

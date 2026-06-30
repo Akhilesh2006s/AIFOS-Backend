@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Injectable, NotFoundException, OnModuleInit,
+  BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -12,7 +12,7 @@ import { OrgSettings, OrgSettingsDocument } from './schemas/org-settings.schema'
 import { OrgBranding, OrgBrandingDocument } from './schemas/org-branding.schema';
 import { OrgProjectAssignment, OrgProjectAssignmentDocument } from './schemas/org-project-assignment.schema';
 import { TenantContextService } from './tenant-context.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { ORG_UNIT_LABELS } from './platform.constants';
 import {
   AssignProjectDto, CreateOrgUnitDto, CreateParentCompanyDto,
@@ -21,6 +21,8 @@ import {
 
 @Injectable()
 export class PlatformService implements OnModuleInit {
+  private readonly logger = new Logger(PlatformService.name);
+
   constructor(
     @InjectModel(ParentCompany.name) private parentModel: Model<ParentCompanyDocument>,
     @InjectModel(Organization.name) private orgModel: Model<OrganizationDocument>,
@@ -34,9 +36,10 @@ export class PlatformService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.seedEnterpriseHierarchy();
-    await this.backfillProjectOrgIds();
+    await runStartupSeed(this.logger, 'Platform', async () => {
+      await this.seedEnterpriseHierarchy();
+      await this.backfillProjectOrgIds();
+    });
   }
 
   private async seedEnterpriseHierarchy() {

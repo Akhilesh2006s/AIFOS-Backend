@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Injectable, NotFoundException, OnModuleInit,
+  BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -21,10 +21,12 @@ import {
   InviteUserDto, PatchPermissionsDto, ResetPasswordDto, UpdateOrganizationDto,
   UpdateRoleDto, UpdateSettingsDto,
 } from './dto/admin.dto';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 
 @Injectable()
 export class AdminService implements OnModuleInit {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private users: UsersService,
     private audit: AuditService,
@@ -37,8 +39,7 @@ export class AdminService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Admin', () => this.seedIfEmpty());
   }
 
   private async seedIfEmpty() {
