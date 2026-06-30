@@ -4,6 +4,7 @@ import { InsightsService } from './insights.service';
 import { InsightsController } from './insights.controller';
 import { ProjectsModule } from '../projects/projects.module';
 import { ProcurementModule } from '../procurement/procurement.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { EquipmentModule } from '../equipment/equipment.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { ComplianceModule } from '../compliance/compliance.module';
@@ -34,6 +35,7 @@ import { SavedReport, SavedReportSchema } from './schemas/saved-report.schema';
   imports: [
     ProjectsModule,
     ProcurementModule,
+    InventoryModule,
     EquipmentModule,
     MaintenanceModule,
     ComplianceModule,

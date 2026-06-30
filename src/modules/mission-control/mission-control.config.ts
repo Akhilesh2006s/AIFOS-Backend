@@ -60,6 +60,34 @@ export function resolveExecutivePersona(userRole: string): ExecutivePersona {
   return map[userRole] || 'ceo';
 }
 
+/** Per-role Mission Control sections — Bekem personas + platform admin. */
+export const ROLE_SECTIONS: Record<string, MissionControlSection[]> = {
+  executive: PERSONA_SECTIONS.ceo,
+  coo: PERSONA_SECTIONS.coo,
+  project_manager: PERSONA_SECTIONS.project_director,
+  project_director: PERSONA_SECTIONS.project_director,
+  org_admin: PERSONA_SECTIONS.org_admin,
+  admin: PERSONA_SECTIONS.org_admin,
+  procurement_manager: ['todaysWork', 'executiveSummary', 'supplyChainHealth', 'pipeline', 'financialHealth', 'alerts', 'activity', 'notifications', 'search'],
+  warehouse_manager: ['todaysWork', 'supplyChainHealth', 'pipeline', 'alerts', 'activity', 'notifications', 'search'],
+  store_keeper: ['todaysWork', 'supplyChainHealth', 'alerts', 'notifications', 'search'],
+  equipment_manager: ['todaysWork', 'assetHealth', 'executiveSummary', 'operationalIntelligence', 'alerts', 'activity', 'notifications', 'search'],
+  fleet_manager: ['todaysWork', 'assetHealth', 'alerts', 'notifications', 'search'],
+  maintenance_manager: ['todaysWork', 'assetHealth', 'alerts', 'activity', 'notifications', 'search'],
+  finance_manager: ['todaysWork', 'financialHealth', 'executiveSummary', 'alerts', 'activity', 'notifications', 'search'],
+  compliance_manager: ['todaysWork', 'compliancePlus', 'financialHealth', 'alerts', 'activity', 'notifications', 'search'],
+  safety_officer: ['todaysWork', 'safety', 'ptw', 'workforce', 'alerts', 'activity', 'notifications', 'search'],
+  quality_engineer: ['todaysWork', 'quality', 'workforce', 'alerts', 'activity', 'notifications', 'search'],
+  hr_manager: ['workforce', 'workforceIntelligence', 'alerts', 'activity', 'notifications', 'search'],
+  site_engineer: ['todaysWork', 'projectHealth', 'supplyChainHealth', 'alerts', 'activity', 'notifications', 'search'],
+  supervisor: ['todaysWork', 'workforce', 'safety', 'projectHealth', 'alerts', 'activity', 'notifications', 'search'],
+  contractor_supervisor: ['todaysWork', 'workforce', 'alerts', 'notifications', 'search'],
+};
+
+export function resolveVisibleSections(userRole: string): MissionControlSection[] {
+  return ROLE_SECTIONS[userRole] ?? PERSONA_SECTIONS[resolveExecutivePersona(userRole)];
+}
+
 export const KPI_LINKS: Record<string, string> = {
   activeProjects: '/projects?filter=active',
   delayedProjects: '/projects?filter=delayed',

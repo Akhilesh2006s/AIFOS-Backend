@@ -12,7 +12,6 @@ import {
 
 @ApiTags('Administration')
 @ApiBearerAuth()
-@Roles('admin')
 @Controller('admin')
 export class AdminController {
   constructor(private readonly service: AdminService) {}
@@ -22,21 +21,25 @@ export class AdminController {
   }
 
   @Get('dashboard')
+  @Roles('admin', 'org_admin')
   dashboard() {
     return this.service.getDashboard();
   }
 
   @Get('organizations')
+  @Roles('admin')
   organizations() {
     return this.service.listOrganizations();
   }
 
   @Get('organizations/:id')
+  @Roles('admin', 'org_admin')
   organization(@Param('id') id: string) {
     return this.service.getOrganization(id);
   }
 
   @Post('organizations')
+  @Roles('admin')
   createOrganization(
     @Body() dto: CreateOrganizationDto,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -45,6 +48,7 @@ export class AdminController {
   }
 
   @Patch('organizations/:id')
+  @Roles('admin')
   updateOrganization(
     @Param('id') id: string,
     @Body() dto: UpdateOrganizationDto,
@@ -54,6 +58,7 @@ export class AdminController {
   }
 
   @Post('organizations/:id/suspend')
+  @Roles('admin')
   suspendOrganization(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -62,6 +67,7 @@ export class AdminController {
   }
 
   @Post('organizations/:id/activate')
+  @Roles('admin')
   activateOrganization(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -70,6 +76,7 @@ export class AdminController {
   }
 
   @Delete('organizations/:id')
+  @Roles('admin')
   deleteOrganization(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -78,16 +85,19 @@ export class AdminController {
   }
 
   @Get('users')
+  @Roles('admin', 'org_admin')
   users(@Query('organizationId') organizationId?: string) {
     return this.service.listUsers(organizationId);
   }
 
   @Get('users/:id')
+  @Roles('admin', 'org_admin')
   user(@Param('id') id: string) {
     return this.service.getUser(id);
   }
 
   @Post('users')
+  @Roles('admin', 'org_admin')
   createUser(
     @Body() dto: AdminCreateUserDto,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -96,6 +106,7 @@ export class AdminController {
   }
 
   @Patch('users/:id')
+  @Roles('admin', 'org_admin')
   updateUser(
     @Param('id') id: string,
     @Body() dto: AdminUpdateUserDto,
@@ -105,6 +116,7 @@ export class AdminController {
   }
 
   @Post('users/:id/reset-password')
+  @Roles('admin', 'org_admin')
   resetPassword(
     @Param('id') id: string,
     @Body() dto: ResetPasswordDto,
@@ -114,6 +126,7 @@ export class AdminController {
   }
 
   @Post('users/:id/lock')
+  @Roles('admin', 'org_admin')
   lockUser(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -122,6 +135,7 @@ export class AdminController {
   }
 
   @Post('users/:id/unlock')
+  @Roles('admin', 'org_admin')
   unlockUser(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -130,6 +144,7 @@ export class AdminController {
   }
 
   @Delete('users/:id')
+  @Roles('admin', 'org_admin')
   deleteUser(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -138,11 +153,13 @@ export class AdminController {
   }
 
   @Get('roles')
+  @Roles('admin', 'org_admin')
   roles() {
     return this.service.listRoles();
   }
 
   @Post('roles')
+  @Roles('admin', 'org_admin')
   createRole(
     @Body() dto: CreateRoleDto,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -151,6 +168,7 @@ export class AdminController {
   }
 
   @Patch('roles/:id')
+  @Roles('admin', 'org_admin')
   updateRole(
     @Param('id') id: string,
     @Body() dto: UpdateRoleDto,
@@ -160,6 +178,7 @@ export class AdminController {
   }
 
   @Post('roles/:id/clone')
+  @Roles('admin', 'org_admin')
   cloneRole(
     @Param('id') id: string,
     @Body() body: { key: string; label: string },
@@ -169,6 +188,7 @@ export class AdminController {
   }
 
   @Delete('roles/:id')
+  @Roles('admin', 'org_admin')
   deleteRole(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -177,11 +197,13 @@ export class AdminController {
   }
 
   @Get('permissions')
+  @Roles('admin', 'org_admin')
   permissions() {
     return this.service.getPermissions();
   }
 
   @Patch('permissions')
+  @Roles('admin', 'org_admin')
   patchPermissions(
     @Body() dto: PatchPermissionsDto,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -190,11 +212,13 @@ export class AdminController {
   }
 
   @Get('invitations')
+  @Roles('admin', 'org_admin')
   invitations(@Query('status') status?: string) {
     return this.service.listInvitations(status);
   }
 
   @Post('invitations')
+  @Roles('admin', 'org_admin')
   inviteUser(
     @Body() dto: InviteUserDto,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -203,6 +227,7 @@ export class AdminController {
   }
 
   @Post('invitations/:id/resend')
+  @Roles('admin', 'org_admin')
   resendInvite(
     @Param('id') id: string,
     @Req() req: { user?: { sub?: string; name?: string } },
@@ -211,6 +236,7 @@ export class AdminController {
   }
 
   @Get('audit')
+  @Roles('admin', 'org_admin')
   audit(
     @Query('entityType') entityType?: string,
     @Query('limit') limit?: string,
@@ -219,11 +245,13 @@ export class AdminController {
   }
 
   @Get('settings')
+  @Roles('admin', 'org_admin')
   settings() {
     return this.service.getSettings();
   }
 
   @Patch('settings')
+  @Roles('admin', 'org_admin')
   updateSettings(
     @Body() dto: UpdateSettingsDto,
     @Req() req: { user?: { sub?: string; name?: string } },

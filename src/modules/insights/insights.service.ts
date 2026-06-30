@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ProjectsService } from '../projects/projects.service';
 import { ProcurementService } from '../procurement/procurement.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { EquipmentService } from '../equipment/equipment.service';
 import { MaintenanceService } from '../maintenance/maintenance.service';
 import { ComplianceService } from '../compliance/compliance.service';
@@ -53,6 +54,7 @@ export class InsightsService {
     private jobs: JobQueueService,
     private projects: ProjectsService,
     private procurement: ProcurementService,
+    private inventory: InventoryService,
     private equipment: EquipmentService,
     private maintenance: MaintenanceService,
     private compliance: ComplianceService,
@@ -346,7 +348,7 @@ export class InsightsService {
           poCount: vendorPos.length,
           totalSpend,
           quotationCount: quotations.length,
-          link: '/vendors',
+          link: `/explore/vendor/${v._id}`,
         };
       }),
     );
@@ -373,11 +375,11 @@ export class InsightsService {
       pending: pos.filter((p) => ['issued', 'partially_delivered'].includes(p.status)).length,
     };
 
-    const lowStockCount = materials.filter((m) => m.reorderLevel > 0).length;
-    const lowStockTrend = months.map((m) => ({
+    const lowStockNow = await this.inventory.countLowStockMaterials();
+    const lowStockTrend = months.map((m, i) => ({
       month: m,
       label: monthLabel(m),
-      count: lowStockCount,
+      count: i === months.length - 1 ? lowStockNow : 0,
     }));
 
     const procurementSpend = months.map((m) => ({
@@ -403,7 +405,7 @@ export class InsightsService {
       vendorPerformance: vendorPerformance.sort((a, b) => b.totalSpend - a.totalSpend),
       poCycleTime,
       grnPerformance,
-      inventoryTurnover: { materials: materials.length, lowStock: lowStockCount },
+      inventoryTurnover: { materials: materials.length, lowStock: lowStockNow },
       materialConsumption,
       lowStockTrend,
       procurementSpend,
@@ -509,6 +511,15 @@ export class InsightsService {
     const progressHist = project.dailyProgressTrend.map((m) => m.avgProgress);
 
     const months = lastNMonths(3);
+    const histMonths = lastNMonths(6);
+    const hours = await this.hoursModel.find();
+    const runningHist = histMonths.map((m) => {
+      const activeIds = new Set(
+        hours.filter((h) => monthKey(h.entryDate) === m && (h.runningHours || 0) > 0).map((h) => h.equipmentId),
+      );
+      return activeIds.size;
+    });
+    const runningSeries = runningHist.some((n) => n > 0) ? runningHist : [assets.utilization.running];
     return {
       materialConsumption: {
         historical: sc.materialConsumption,
@@ -524,7 +535,8 @@ export class InsightsService {
       },
       equipmentDemand: {
         currentAssigned: assets.utilization.running,
-        forecast: linearForecast([assets.utilization.running, assets.utilization.running + 1, assets.utilization.running], 3),
+        historical: runningHist,
+        forecast: linearForecast(runningSeries, 3),
       },
       projectCompletion: {
         historical: project.dailyProgressTrend,
@@ -833,6 +845,31 @@ export class InsightsService {
         const a = await this.getAssetAnalytics(filters);
         rows = a.costPerHour.map((e) => ({ equipment: e.name, code: e.code, costPerHour: e.costPerHour, utilization: e.utilization }));
         filename = 'asset-analytics';
+        break;
+      }
+      case 'finance': {
+        const fin = await this.getFinanceAnalytics(filters);
+        rows = (fin.projectCostRanking ?? []).map((p) => ({ project: p.name, actualCost: p.actualCost, budget: p.budget ?? 0 }));
+        filename = 'finance-analytics';
+        break;
+      }
+      case 'compliance': {
+        const c = await this.getComplianceAnalytics(filters);
+        rows = (c.renewalQueue ?? []).map((r: { documentType: string; documentNumber?: string; renewalStatus: string }) => ({
+          document: r.documentType,
+          number: r.documentNumber ?? '',
+          status: r.renewalStatus,
+        }));
+        filename = 'compliance-analytics';
+        break;
+      }
+      case 'workforce': {
+        const w = await this.getWorkforceAnalytics(filters);
+        rows = (w.attendanceTrend ?? []).map((t: { month: string; percent?: number; count?: number }) => ({
+          month: t.month,
+          attendance: t.percent ?? t.count ?? 0,
+        }));
+        filename = 'workforce-analytics';
         break;
       }
       case 'brief': {

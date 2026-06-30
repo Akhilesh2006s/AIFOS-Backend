@@ -154,16 +154,40 @@ export function generateIntelligence(
     };
   }
 
-  if (entityType === 'grn' && ['pending_qc', 'pending'].includes(status)) {
+  if (entityType === 'grn' && ['pending_qc', 'pending', 'accepted'].includes(status)) {
     return {
-      recommendation: `GRN ${doc.grnNumber ?? ''} pending QC — vendor bills and material issue remain blocked.`,
-      severity: 'high',
-      actionLabel: 'Complete GRN QC',
+      recommendation: `GRN ${doc.grnNumber ?? ''} ${status === 'accepted' ? 'received' : 'pending QC'} — verify stock before material issue.`,
+      severity: status === 'accepted' ? 'medium' : 'high',
+      actionLabel: status === 'accepted' ? 'Issue to site' : 'Complete GRN QC',
     };
+  }
+
+  if (entityType === 'payment') {
+    if (status === 'scheduled') {
+      return { recommendation: 'Payment scheduled — approve to release cash from treasury.', severity: 'medium', actionLabel: 'Approve payment' };
+    }
+    if (status === 'approved') {
+      return { recommendation: 'Payment approved — mark paid when bank transfer completes.', severity: 'medium', actionLabel: 'Mark paid' };
+    }
+    if (status === 'on_hold') {
+      return { recommendation: 'Payment on hold — resolve blocker before cash release.', severity: 'high', actionLabel: 'Review hold' };
+    }
   }
 
   if (entityType === 'ncr' && ['open', 'assigned'].includes(status)) {
     return { recommendation: 'Open NCR on critical path — link CAPA and notify project director.', severity: 'high', actionLabel: 'Open CAPA' };
+  }
+
+  if (entityType === 'capa' && status !== 'closed') {
+    return { recommendation: 'CAPA open — complete corrective action and verify before closing NCR.', severity: status === 'in_progress' ? 'medium' : 'high', actionLabel: 'Update CAPA' };
+  }
+
+  if (entityType === 'inspection' && ['failed', 'fail'].includes(status)) {
+    return { recommendation: 'Inspection failed — raise NCR and assign CAPA.', severity: 'high', actionLabel: 'Raise NCR' };
+  }
+
+  if (entityType === 'compliance-record' && ['expired', 'expiring'].includes(status)) {
+    return { recommendation: 'Compliance document requires renewal — permit and operations may be blocked.', severity: 'critical', actionLabel: 'Renew document' };
   }
 
   return undefined;
@@ -200,6 +224,55 @@ export function buildWorkflowFromStatus(
       { label: 'Payment', status: s === 'paid' ? 'complete' : s === 'ready_for_payment' ? 'waiting' : 'not_started' },
     );
     return { stage: 'Accounts payable', position: s.replace(/_/g, ' '), pendingWith: s === 'exception' ? 'Finance' : undefined, steps };
+  }
+
+  if (entityType === 'payment') {
+    steps.push(
+      { label: 'Scheduled', status: ['draft'].includes(s) ? 'not_started' : 'complete' },
+      { label: 'Approved', status: s === 'approved' || s === 'paid' ? 'complete' : s === 'scheduled' ? 'waiting' : 'not_started' },
+      { label: 'Paid', status: s === 'paid' ? 'complete' : 'not_started' },
+    );
+    return { stage: 'Treasury', position: s.replace(/_/g, ' '), pendingWith: s === 'scheduled' ? owner ?? 'Finance' : undefined, steps };
+  }
+
+  if (entityType === 'purchase-order') {
+    steps.push(
+      { label: 'Draft', status: s === 'draft' ? 'active' : 'complete' },
+      { label: 'Approved', status: ['approved', 'issued', 'partial_received', 'received'].includes(s) ? 'complete' : s === 'draft' ? 'waiting' : 'not_started' },
+      { label: 'Issued', status: ['issued', 'partial_received', 'received'].includes(s) ? 'complete' : 'not_started' },
+      { label: 'Received', status: ['received'].includes(s) ? 'complete' : ['partial_received'].includes(s) ? 'active' : 'not_started' },
+    );
+    return { stage: 'Procurement fulfillment', position: s.replace(/_/g, ' '), steps };
+  }
+
+  if (entityType === 'permit') {
+    steps.push(
+      { label: 'Submitted', status: ['draft'].includes(s) ? 'not_started' : 'complete' },
+      { label: 'Safety Review', status: ['safety_review', 'submitted'].includes(s) ? 'waiting' : ['draft'].includes(s) ? 'not_started' : 'complete' },
+      { label: 'Approved', status: ['active', 'completed', 'closed'].includes(s) ? 'complete' : 'waiting' },
+      { label: 'Work Active', status: s === 'active' ? 'active' : s === 'completed' || s === 'closed' ? 'complete' : 'not_started' },
+    );
+    return { stage: 'Permit to work', position: s.replace(/_/g, ' '), pendingWith: owner, steps };
+  }
+
+  if (entityType === 'ncr') {
+    steps.push(
+      { label: 'Raised', status: 'complete' },
+      { label: 'Investigation', status: ['investigating', 'assigned'].includes(s) ? 'active' : ['open'].includes(s) ? 'waiting' : 'complete' },
+      { label: 'CAPA', status: ['corrective_action', 'verification'].includes(s) ? 'active' : 'not_started' },
+      { label: 'Closed', status: s === 'closed' ? 'complete' : 'not_started' },
+    );
+    return { stage: 'Quality non-conformance', position: s.replace(/_/g, ' '), steps };
+  }
+
+  if (entityType === 'capa') {
+    steps.push(
+      { label: 'Assigned', status: ['open'].includes(s) ? 'waiting' : 'complete' },
+      { label: 'In Progress', status: s === 'in_progress' ? 'active' : ['open'].includes(s) ? 'not_started' : 'complete' },
+      { label: 'Verification', status: s === 'verification' ? 'active' : s === 'closed' ? 'complete' : 'not_started' },
+      { label: 'Closed', status: s === 'closed' ? 'complete' : 'not_started' },
+    );
+    return { stage: 'Corrective action', position: s.replace(/_/g, ' '), pendingWith: owner, steps };
   }
 
   return {

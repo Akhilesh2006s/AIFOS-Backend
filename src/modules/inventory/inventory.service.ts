@@ -26,11 +26,29 @@ export class InventoryService {
     private tenant: TenantContextService,
   ) {}
 
+  /** Materials whose latest ledger balance is at or below reorder level. */
+  async countLowStockMaterials(): Promise<number> {
+    const orgQ = this.tenant.orgFilter();
+    const materials = await this.materialModel
+      .find({ reorderLevel: { $gt: 0 }, status: 'active', ...orgQ })
+      .select('_id reorderLevel')
+      .lean();
+    if (!materials.length) return 0;
+    const ids = materials.map((m) => String(m._id));
+    const balances = await this.ledgerModel.aggregate([
+      { $match: { materialId: { $in: ids } } },
+      { $sort: { createdAt: -1 as const } },
+      { $group: { _id: '$materialId', balance: { $first: '$balanceAfter' } } },
+    ]);
+    const balanceMap = new Map(balances.map((b) => [b._id, b.balance as number]));
+    return materials.filter((m) => (balanceMap.get(String(m._id)) ?? 0) <= m.reorderLevel).length;
+  }
+
   async getStats() {
     const orgQ = this.tenant.orgFilter();
     const [materials, lowStock, warehouses] = await Promise.all([
       this.materialModel.countDocuments({ status: 'active', ...orgQ }),
-      this.materialModel.countDocuments({ reorderLevel: { $gt: 0 }, ...orgQ }),
+      this.countLowStockMaterials(),
       this.warehouseModel.countDocuments({ status: 'active', ...orgQ }),
     ]);
     return { totalMaterials: materials, warehouses, lowStockAlerts: lowStock };
@@ -86,6 +104,9 @@ export class InventoryService {
 
   async createGrnFromPO(poId: string, warehouseId: string, lines: Grn['lines'], receivedBy?: string) {
     const po = await findByIdOrThrow(this.poModel, poId);
+    if (!['approved', 'issued', 'partial_received'].includes(po.status)) {
+      throw new BadRequestException('PO must be approved and issued before goods receipt');
+    }
     const count = await this.grnModel.countDocuments();
     const grn = await this.grnModel.create({
       grnNumber: `GRN-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`,

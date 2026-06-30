@@ -3,27 +3,27 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['*'],
   executive: ['*'],
   coo: ['*'],
-  org_admin: ['*'],
-  finance_manager: ['/business', '/insights', '/mission-control', '/projects', '/notifications', '/documents', '/compliance', '/dashboards'],
-  safety_officer: ['/workforce', '/mission-control', '/projects', '/notifications', '/dashboards', '/insights'],
-  quality_engineer: ['/workforce', '/mission-control', '/projects', '/notifications', '/dashboards', '/insights'],
-  hr_manager: ['/workforce', '/insights', '/mission-control', '/projects', '/notifications', '/documents', '/dashboards'],
-  project_manager: ['/projects', '/workflow', '/documents', '/notifications', '/mission-control', '/insights', '/analytics', '/dashboards', '/business', '/workforce'],
-  project_director: ['/projects', '/workflow', '/documents', '/notifications', '/mission-control', '/insights', '/analytics', '/business', '/workforce', '/dashboards'],
-  site_engineer: ['/projects', '/documents', '/notifications', '/consumption', '/mission-control', '/workforce', '/dashboards'],
-  supervisor: ['/workforce', '/projects', '/notifications', '/mission-control', '/dashboards'],
-  contractor_supervisor: ['/workforce', '/notifications', '/mission-control', '/dashboards'],
-  procurement_manager: ['/procurement', '/vendors', '/supply-chain', '/workflow', '/notifications', '/mission-control', '/insights', '/business', '/documents', '/integrations', '/inventory', '/dashboards'],
-  warehouse_manager: ['/inventory', '/supply-chain', '/consumption', '/workflow', '/notifications', '/mission-control', '/business', '/documents', '/procurement', '/vendors', '/dashboards'],
-  store_keeper: ['/inventory', '/consumption', '/workflow', '/notifications', '/mission-control', '/dashboards', '/supply-chain'],
-  equipment_manager: ['/equipment', '/assets', '/fleet', '/maintenance', '/notifications', '/mission-control', '/insights', '/workforce', '/integrations', '/dashboards'],
-  fleet_manager: ['/fleet', '/equipment', '/assets', '/notifications', '/integrations', '/mission-control', '/dashboards'],
-  maintenance_manager: ['/maintenance', '/equipment', '/assets', '/notifications', '/workforce', '/mission-control', '/dashboards'],
-  compliance_manager: ['/compliance', '/equipment', '/assets', '/notifications', '/mission-control', '/documents', '/insights', '/business', '/dashboards'],
-  document_controller: ['/documents', '/notifications', '/mission-control', '/insights', '/projects', '/business', '/dashboards'],
-  user: ['/projects', '/notifications', '/mission-control', '/dashboards'],
-  employee: ['/projects', '/notifications', '/mission-control', '/workforce', '/dashboards'],
-  viewer: ['/projects', '/insights', '/mission-control', '/notifications', '/dashboards'],
+  org_admin: ['/admin', '/mission-control', '/notifications', '/dashboards', '/explorer', '/audit'],
+  finance_manager: ['/business', '/insights', '/mission-control', '/projects', '/notifications', '/documents', '/compliance', '/dashboards', '/explorer'],
+  safety_officer: ['/workforce', '/mission-control', '/projects', '/notifications', '/dashboards', '/insights', '/explorer'],
+  quality_engineer: ['/workforce', '/mission-control', '/projects', '/notifications', '/dashboards', '/insights', '/explorer'],
+  hr_manager: ['/workforce', '/insights', '/mission-control', '/projects', '/notifications', '/documents', '/dashboards', '/explorer'],
+  project_manager: ['/projects', '/workflow', '/documents', '/notifications', '/mission-control', '/insights', '/analytics', '/dashboards', '/business', '/workforce', '/explorer'],
+  project_director: ['/projects', '/workflow', '/documents', '/notifications', '/mission-control', '/insights', '/analytics', '/business', '/workforce', '/dashboards', '/explorer'],
+  site_engineer: ['/projects', '/documents', '/notifications', '/consumption', '/mission-control', '/workforce', '/dashboards', '/explorer'],
+  supervisor: ['/workforce', '/projects', '/notifications', '/mission-control', '/dashboards', '/explorer'],
+  contractor_supervisor: ['/workforce', '/notifications', '/mission-control', '/dashboards', '/explorer'],
+  procurement_manager: ['/procurement', '/vendors', '/supply-chain', '/workflow', '/notifications', '/mission-control', '/insights', '/business', '/documents', '/integrations', '/inventory', '/dashboards', '/explorer'],
+  warehouse_manager: ['/inventory', '/supply-chain', '/consumption', '/workflow', '/notifications', '/mission-control', '/business', '/documents', '/procurement', '/vendors', '/dashboards', '/explorer'],
+  store_keeper: ['/inventory', '/consumption', '/workflow', '/notifications', '/mission-control', '/dashboards', '/supply-chain', '/explorer'],
+  equipment_manager: ['/equipment', '/assets', '/fleet', '/maintenance', '/notifications', '/mission-control', '/insights', '/workforce', '/integrations', '/dashboards', '/explorer'],
+  fleet_manager: ['/fleet', '/equipment', '/assets', '/notifications', '/integrations', '/mission-control', '/dashboards', '/explorer'],
+  maintenance_manager: ['/maintenance', '/equipment', '/assets', '/notifications', '/workforce', '/mission-control', '/dashboards', '/explorer'],
+  compliance_manager: ['/compliance', '/equipment', '/assets', '/notifications', '/mission-control', '/documents', '/insights', '/business', '/dashboards', '/explorer'],
+  document_controller: ['/documents', '/notifications', '/mission-control', '/insights', '/projects', '/business', '/dashboards', '/explorer'],
+  user: ['/projects', '/notifications', '/mission-control', '/dashboards', '/explorer'],
+  employee: ['/projects', '/notifications', '/mission-control', '/workforce', '/dashboards', '/explorer'],
+  viewer: ['/projects', '/insights', '/mission-control', '/notifications', '/dashboards', '/explorer'],
 };
 
 /** Shared demo password — meets strong-password policy (12+ chars). */
@@ -50,13 +50,54 @@ export const DEMO_USERS = [
   { name: 'Gopal Reddy', email: 'contractor@bekem.com', password: DEMO_PASSWORD, role: 'contractor_supervisor', department: 'Contractors' },
 ] as const;
 
+const EXPLORER_ENTITY_API_PREFIX: Record<string, string> = {
+  project: '/projects',
+  site: '/projects',
+  boq: '/projects',
+  milestone: '/projects',
+  'material-requirement': '/projects',
+  'purchase-request': '/procurement',
+  rfq: '/procurement',
+  quotation: '/procurement',
+  'purchase-order': '/procurement',
+  vendor: '/vendors',
+  grn: '/inventory',
+  'warehouse-material': '/inventory',
+  'material-issue': '/inventory',
+  consumption: '/consumption',
+  'vendor-bill': '/business',
+  payment: '/business',
+  equipment: '/equipment',
+  'fleet-vehicle': '/fleet',
+  maintenance: '/maintenance',
+  'fuel-entry': '/fleet',
+  operator: '/workforce',
+  employee: '/workforce',
+  team: '/workforce',
+  attendance: '/workforce',
+  permit: '/workforce',
+  'safety-incident': '/workforce',
+  inspection: '/workforce',
+  ncr: '/workforce',
+  capa: '/workforce',
+  document: '/documents',
+  'compliance-record': '/compliance',
+};
+
 export function roleCanAccess(role: string, path: string): boolean {
   const perms = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.user;
   if (perms.includes('*')) return true;
   const normalized = path.replace(/^\/api\/v1/, '');
   if (normalized.startsWith('/explorer')) {
-    const traceRoles = ['/mission-control', '/projects', '/procurement', '/equipment', '/business', '/inventory', '/vendors', '/workforce', '/insights', '/supply-chain'];
-    return perms.some((p) => traceRoles.includes(p));
+    if (!perms.includes('/explorer')) return false;
+    const segments = normalized.split('/').filter(Boolean);
+    const entityType = segments[1];
+    if (!entityType || entityType === 'purchase-request') {
+      return perms.includes('/procurement');
+    }
+    const required = EXPLORER_ENTITY_API_PREFIX[entityType];
+    if (!required) return perms.includes('/explorer');
+    return perms.includes(required);
   }
   return perms.some((p) => normalized.startsWith(p) || normalized === p);
 }

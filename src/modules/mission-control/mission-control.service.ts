@@ -42,7 +42,7 @@ import { Material, MaterialDocument } from '../inventory/schemas/inventory.schem
 import { ConsumptionEntry, ConsumptionEntryDocument } from '../consumption/schemas/consumption.schema';
 import { Grn, GrnDocument } from '../inventory/schemas/warehouse-flow.schema';
 import { MaterialIssue, MaterialIssueDocument } from '../inventory/schemas/warehouse-flow.schema';
-import { resolveExecutivePersona, PERSONA_SECTIONS, KPI_LINKS } from './mission-control.config';
+import { resolveExecutivePersona, PERSONA_SECTIONS, KPI_LINKS, resolveVisibleSections } from './mission-control.config';
 import { TodayWorkService } from './today-work.service';
 
 @Injectable()
@@ -93,66 +93,105 @@ export class MissionControlService {
   ) {}
 
   async getOverview(userRole: string) {
-    return this.cache.getOrSet(
-      `mc:overview:${userRole}`,
-      () => this.buildOverview(userRole),
-      30_000,
-    );
+    try {
+      return await this.cache.getOrSet(
+        `mc:overview:${userRole}`,
+        async () => {
+          try {
+            return await this.buildOverview(userRole);
+          } catch (err) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[mission-control] buildOverview failed, returning minimal overview', err);
+            }
+            return this.buildMinimalOverview(userRole);
+          }
+        },
+        30_000,
+      );
+    } catch {
+      return this.buildMinimalOverview(userRole);
+    }
+  }
+
+  private async buildMinimalOverview(userRole: string) {
+    const persona = resolveExecutivePersona(userRole);
+    const visibleSections = resolveVisibleSections(userRole);
+    const [projectStats, procStats, financialHealth] = await Promise.all([
+      this.projects.getStats().catch(() => ({ active: 0, delayed: 0, openIssues: 0, totalBudget: 0, totalSpent: 0 })),
+      this.procurement.getStats().catch(() => ({ pendingPRs: 0, poAwaiting: 0 })),
+      this.business.getFinancialHealth().catch(() => ({})),
+    ]);
+    const executiveDecisions = await this.todayWork.buildExecutiveDecisions().catch(() => ({ items: [], title: 'Decisions', subtitle: '', estimatedMinutes: 0 }));
+    return {
+      persona,
+      visibleSections,
+      executiveSummary: {
+        activeProjects: projectStats.active ?? 0,
+        delayedProjects: projectStats.delayed ?? 0,
+        pendingPurchaseRequisitions: procStats.pendingPRs ?? 0,
+        pendingPurchaseOrders: procStats.poAwaiting ?? 0,
+        openIssues: projectStats.openIssues ?? 0,
+        totalBudget: projectStats.totalBudget ?? 0,
+        totalSpent: projectStats.totalSpent ?? 0,
+        budgetUtilization: projectStats.totalBudget
+          ? Math.round(((projectStats.totalSpent ?? 0) / projectStats.totalBudget) * 100)
+          : 0,
+        links: KPI_LINKS,
+      },
+      financialHealth,
+      executiveDecisions,
+      todaysWork: [],
+      alerts: [],
+      projectHealth: [],
+      pipeline: [],
+      activity: [],
+      notifications: { items: [], unreadCount: 0 },
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   private async buildOverview(userRole: string) {
     const persona = resolveExecutivePersona(userRole);
-    const visibleSections = PERSONA_SECTIONS[persona];
+    const visibleSections = resolveVisibleSections(userRole);
 
-    const [
-      projectStats,
-      equipStats,
-      procStats,
-      maintStats,
-      scDash,
-      assetsDash,
-      compStats,
-      userCount,
-      financialHealth,
-    ] = await Promise.all([
-      this.projects.getStats(),
-      this.equipment.getStats(),
-      this.procurement.getStats(),
-      this.maintenance.getStats(),
-      this.supplyChain.getDashboard(),
-      this.assets.getDashboard(),
-      this.compliance.getStats(),
-      this.users.count(),
-      this.business.getFinancialHealth(),
-    ]);
+    const projectStats = (await this.safeCall('projectStats', () => this.projects.getStats())) ?? { active: 0, delayed: 0, openIssues: 0, totalBudget: 0, totalSpent: 0 };
+    const equipStats = (await this.safeCall('equipStats', () => this.equipment.getStats())) ?? { running: 0, active: 0, inMaintenance: 0, idle: 0, breakdowns: 0, upcomingServices: 0, fuelCostToday: 0, avgUtilization: 0 };
+    const procStats = (await this.safeCall('procStats', () => this.procurement.getStats())) ?? { pendingPRs: 0, poAwaiting: 0, pendingApproval: 0, openRfqs: 0, openRfq: 0 };
+    const maintStats = (await this.safeCall('maintStats', () => this.maintenance.getStats())) ?? { breakdowns: 0 };
+    const scDash = (await this.safeCall('scDash', () => this.supplyChain.getDashboard())) ?? { kpis: {} as Record<string, number> };
+    const assetsDash = (await this.safeCall('assetsDash', () => this.assets.getDashboard())) ?? { kpis: {} as Record<string, number> };
+    const compStats = (await this.safeCall('compStats', () => this.compliance.getStats())) ?? { expired: 0, expiringSoon: 0 };
+    const userCount = (await this.safeCall('userCount', () => this.users.count())) ?? 0;
+    const financialHealth = (await this.safeCall('financialHealth', () => this.business.getFinancialHealth())) ?? {};
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const lowStock = await this.materialModel.countDocuments({ reorderLevel: { $gt: 0 }, status: 'active' });
+    const lowStock = (await this.safeCall('lowStock', () => this.inventory.countLowStockMaterials())) ?? 0;
 
     const executiveSummary = {
-      activeProjects: projectStats.active,
-      delayedProjects: projectStats.delayed,
-      activeEquipment: equipStats.running ?? equipStats.active,
-      equipmentUnderMaintenance: equipStats.inMaintenance,
-      pendingPurchaseRequisitions: procStats.pendingPRs ?? procStats.pendingApproval,
-      pendingRfqs: procStats.openRfqs ?? procStats.openRfq,
-      pendingPurchaseOrders: procStats.poAwaiting,
+      activeProjects: projectStats.active ?? 0,
+      delayedProjects: projectStats.delayed ?? 0,
+      activeEquipment: equipStats.running ?? equipStats.active ?? 0,
+      equipmentUnderMaintenance: equipStats.inMaintenance ?? 0,
+      pendingPurchaseRequisitions: procStats.pendingPRs ?? procStats.pendingApproval ?? 0,
+      pendingRfqs: procStats.openRfqs ?? procStats.openRfq ?? 0,
+      pendingPurchaseOrders: procStats.poAwaiting ?? 0,
       lowStockMaterials: lowStock,
-      openIssues: projectStats.openIssues,
-      openBreakdowns: maintStats.breakdowns,
-      totalBudget: projectStats.totalBudget,
-      totalSpent: projectStats.totalSpent,
-      budgetUtilization: projectStats.totalBudget ? Math.round((projectStats.totalSpent / projectStats.totalBudget) * 100) : 0,
+      openIssues: projectStats.openIssues ?? 0,
+      openBreakdowns: maintStats.breakdowns ?? 0,
+      totalBudget: projectStats.totalBudget ?? 0,
+      totalSpent: projectStats.totalSpent ?? 0,
+      budgetUtilization: projectStats.totalBudget ? Math.round(((projectStats.totalSpent ?? 0) / projectStats.totalBudget) * 100) : 0,
       links: KPI_LINKS,
     };
 
-    const pipeline = await this.buildPipeline();
-    const todaysWork = await this.buildTodaysWork();
-    const executiveDecisions = await this.todayWork.buildExecutiveDecisions();
-    const activity = await this.buildActivityFeed();
-    const alerts = await this.buildAlerts(projectStats, compStats);
-    const projectHealth = await this.buildProjectHealth();
+    const pipeline = (await this.safeCall('pipeline', () => this.buildPipeline())) ?? [];
+    const { todaysWork, executiveDecisions } = await this.safeCall('roleWork', () => this.buildRoleWork(userRole)) ?? {
+      todaysWork: [], executiveDecisions: undefined,
+    };
+    const activity = (await this.safeCall('activity', () => this.buildActivityFeed())) ?? [];
+    const alerts = (await this.safeCall('alerts', () => this.buildAlerts(projectStats, compStats))) ?? [];
+    const projectHealth = (await this.safeCall('projectHealth', () => this.buildProjectHealth())) ?? [];
     const assetHealth = {
       running: assetsDash.kpis?.running ?? equipStats.running,
       idle: assetsDash.kpis?.idle ?? equipStats.idle,
@@ -162,40 +201,42 @@ export class MissionControlService {
       avgUtilization: assetsDash.kpis?.utilizationPercent ?? equipStats.avgUtilization,
       complianceExpiring: assetsDash.kpis?.complianceAlerts ?? compStats.expiringSoon,
     };
+    const materialIssued = (await this.safeCall('materialIssued', () => this.issueInvModel.countDocuments())) ?? 0;
+    const todayConsumption = (await this.safeCall('todayConsumption', () => this.consumptionModel.countDocuments({ entryDate: { $gte: today } }))) ?? 0;
+    const notificationList = (await this.safeCall('notifications', () => this.notifications.findAllRecent(30))) ?? [];
+    const unreadCount = (await this.safeCall('unreadCount', () => this.notifications.countUnread())) ?? 0;
     const supplyChainHealth = {
       openPR: scDash.kpis?.pendingPR,
       openRFQ: scDash.kpis?.openRfq,
       pendingPO: scDash.kpis?.poAwaitingApproval,
       todayGrn: scDash.kpis?.todayGrn,
-      materialIssued: await this.issueInvModel.countDocuments(),
-      todayConsumption: await this.consumptionModel.countDocuments({ entryDate: { $gte: today } }),
+      materialIssued,
+      todayConsumption,
       lowStock: scDash.kpis?.lowStock,
       procurementSpend: scDash.kpis?.procurementSpend,
     };
-    const notificationList = await this.notifications.findAllRecent(30);
-    const unreadCount = await this.notifications.countUnread();
-    const documentCenter = await this.documents.getOperationsMetrics();
-    const compliancePlus = await this.compliance.getOperationsMetrics();
-    const workforce = await this.workforce.getOperationsMetrics();
-    const safety = await this.workforceSafety.getOperationsMetrics();
-    const ptw = await this.workforcePermits.getOperationsMetrics();
-    const quality = await this.workforceQuality.getOperationsMetrics();
-    const workforceIntelligence = await this.workforceIntelligence.getOperationsMetrics();
-    const operationalIntelligence = await this.operationalIntelligence.getOperationsMetrics();
-    const recommendations = await this.operationalIntelligence.getRecommendationOperationsMetrics();
-    const predictions = await this.operationalIntelligence.getPredictionOperationsMetrics();
-    const risks = await this.operationalIntelligence.getRiskOperationsMetrics();
-    const executiveBrief = await this.operationalIntelligence.getExecutiveOperationsMetrics();
-    const connectorHealth = await this.integrations.getOperationsMetrics();
-    const apiHealth = await this.integrations.getApiHealthMetrics();
-    const erpSync = await this.integrations.getErpSyncMetrics();
-    const deviceHealth = await this.integrations.getDeviceHealthMetrics();
-    const communication = await this.integrations.getCommMetrics();
+    const documentCenter = await this.safeMetric('documentCenter', () => this.documents.getOperationsMetrics());
+    const compliancePlus = await this.safeMetric('compliancePlus', () => this.compliance.getOperationsMetrics());
+    const workforce = await this.safeMetric('workforce', () => this.workforce.getOperationsMetrics());
+    const safety = await this.safeMetric('safety', () => this.workforceSafety.getOperationsMetrics());
+    const ptw = await this.safeMetric('ptw', () => this.workforcePermits.getOperationsMetrics());
+    const quality = await this.safeMetric('quality', () => this.workforceQuality.getOperationsMetrics());
+    const workforceIntelligence = await this.safeMetric('workforceIntelligence', () => this.workforceIntelligence.getOperationsMetrics());
+    const operationalIntelligence = await this.safeMetric('operationalIntelligence', () => this.operationalIntelligence.getOperationsMetrics());
+    const recommendations = await this.safeMetric('recommendations', () => this.operationalIntelligence.getRecommendationOperationsMetrics());
+    const predictions = await this.safeMetric('predictions', () => this.operationalIntelligence.getPredictionOperationsMetrics());
+    const risks = await this.safeMetric('risks', () => this.operationalIntelligence.getRiskOperationsMetrics());
+    const executiveBrief = await this.safeMetric('executiveBrief', () => this.operationalIntelligence.getExecutiveOperationsMetrics());
+    const connectorHealth = await this.safeMetric('connectorHealth', () => this.integrations.getOperationsMetrics());
+    const apiHealth = await this.safeMetric('apiHealth', () => this.integrations.getApiHealthMetrics());
+    const erpSync = await this.safeMetric('erpSync', () => this.integrations.getErpSyncMetrics());
+    const deviceHealth = await this.safeMetric('deviceHealth', () => this.integrations.getDeviceHealthMetrics());
+    const communication = await this.safeMetric('communication', () => this.integrations.getCommMetrics());
     const platformAdmin = await this.safeMetric('platformAdmin', () => this.admin.getOperationsMetrics());
-    const organizationSelector = await this.platform.getOperationsMetrics();
-    const regionDashboard = await this.globalEnterprise.getRegionDashboardMetrics();
-    const brandPreview = await this.whitelabel.getOperationsMetrics();
-    const marketplace = await this.marketplace.getOperationsMetrics();
+    const organizationSelector = await this.safeMetric('organizationSelector', () => this.platform.getOperationsMetrics());
+    const regionDashboard = await this.safeMetric('regionDashboard', () => this.globalEnterprise.getRegionDashboardMetrics());
+    const brandPreview = await this.safeMetric('brandPreview', () => this.whitelabel.getOperationsMetrics());
+    const marketplace = await this.safeMetric('marketplace', () => this.marketplace.getOperationsMetrics());
     const developer = await this.safeMetric('developer', () => this.developer.getOperationsMetrics());
 
     return {
@@ -244,7 +285,7 @@ export class MissionControlService {
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
     const delayedMilestones = await this.milestoneModel.countDocuments({ targetDate: { $lt: new Date() }, status: { $ne: 'completed' } });
-    const lowStock = await this.materialModel.countDocuments({ reorderLevel: { $gt: 0 }, status: 'active' });
+    const lowStock = await this.inventory.countLowStockMaterials();
     const workOrders = await this.maintenance.findAll();
     const maintOpenCount = workOrders.filter((w) => w.status !== 'completed').length;
     const maintCompleted = workOrders.filter((w) => w.status === 'completed').length;
@@ -296,6 +337,27 @@ export class MissionControlService {
     ];
   }
 
+  private async buildRoleWork(userRole: string) {
+    const execRoles = new Set(['executive', 'coo', 'org_admin', 'admin']);
+    if (execRoles.has(userRole)) {
+      const [todaysWork, executiveDecisions] = await Promise.all([
+        this.buildTodaysWork(),
+        this.todayWork.buildExecutiveDecisions(),
+      ]);
+      return { todaysWork, executiveDecisions };
+    }
+    const roleWork = await this.todayWork.getForRole(userRole);
+    return {
+      todaysWork: roleWork.items.map((item) => ({
+        type: item.category,
+        label: item.label,
+        link: item.link,
+        priority: item.priority,
+      })),
+      executiveDecisions: undefined,
+    };
+  }
+
   private async buildTodaysWork() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -320,7 +382,7 @@ export class MissionControlService {
         link: `/business/compliance/${a.record._id}`,
         priority: a.alertTier === 'expired' ? 'critical' : 'high',
       })),
-      ...reportsPending.map((r) => ({ type: 'daily_report', label: r.summary?.slice(0, 60) || 'Daily report', projectId: r.projectId, link: `/projects/${r.projectId}?tab=reports`, priority: 'medium' })),
+      ...reportsPending.map((r) => ({ type: 'daily_report', label: r.summary?.slice(0, 60) || 'Daily report', projectId: r.projectId, link: `/projects/${r.projectId}?tab=daily-reports`, priority: 'medium' })),
       ...prsPending.map((p) => ({
         type: 'approval',
         label: `${p.prNumber}: ${p.title}`,
@@ -416,9 +478,9 @@ export class MissionControlService {
       alerts.push({ priority: 'medium', title: 'Pending Approvals', message: `${pendingPR} purchase requisition(s)`, link: '/procurement?tab=pr' });
     }
 
-    const lowStock = await this.materialModel.countDocuments({ reorderLevel: { $gt: 0 } });
+    const lowStock = await this.inventory.countLowStockMaterials();
     if (lowStock > 0) {
-      alerts.push({ priority: 'high', title: 'Low Stock', message: `${lowStock} material(s) at reorder level`, link: '/inventory?tab=materials' });
+      alerts.push({ priority: 'high', title: 'Low Stock', message: `${lowStock} material(s) below reorder level`, link: '/inventory?tab=materials' });
     }
 
     return alerts.sort((a, b) => {
@@ -431,26 +493,41 @@ export class MissionControlService {
     const projects = await this.projectModel.find({ status: { $ne: 'archived' } }).sort({ name: 1 });
     const healthList = await Promise.all(
       projects.slice(0, 25).map(async (p) => {
-        const health = await this.projects.getProjectHealth(String(p._id));
-        const prs = (await this.procurement.findAllPRs()).filter((pr) => String(pr.projectId) === String(p._id) || String(pr.projectId) === p.code);
-        return {
-          id: String(p._id),
-          name: p.name,
-          code: p.code,
-          status: p.status,
-          healthScore: health.score,
-          healthLabel: health.healthLabel,
-          progress: p.progressPercent,
-          openIssues: health.openIssues,
-          delayedMilestones: health.delayedMilestones,
-          budgetStatus: p.spentAmount > p.budgetAmount ? 'over' : p.spentAmount > p.budgetAmount * 0.85 ? 'warn' : 'ok',
-          openProcurement: prs.filter((pr) => !['approved', 'po_created', 'vendor_awarded'].includes(pr.status)).length,
-          equipmentAssigned: health.equipmentAssigned,
-          link: `/projects/${p._id}`,
-        };
+        try {
+          const health = await this.projects.getProjectHealth(String(p._id));
+          const prs = (await this.procurement.findAllPRs()).filter((pr) => String(pr.projectId) === String(p._id) || String(pr.projectId) === p.code);
+          return {
+            id: String(p._id),
+            name: p.name,
+            code: p.code,
+            status: p.status,
+            healthScore: health.score,
+            healthLabel: health.healthLabel,
+            progress: p.progressPercent,
+            openIssues: health.openIssues,
+            delayedMilestones: health.delayedMilestones,
+            budgetStatus: p.spentAmount > p.budgetAmount ? 'over' : p.spentAmount > p.budgetAmount * 0.85 ? 'warn' : 'ok',
+            openProcurement: prs.filter((pr) => !['approved', 'po_created', 'vendor_awarded'].includes(pr.status)).length,
+            equipmentAssigned: health.equipmentAssigned,
+            link: `/projects/${p._id}`,
+          };
+        } catch {
+          return null;
+        }
       }),
     );
-    return healthList.sort((a, b) => a.healthScore - b.healthScore);
+    return healthList.filter((row): row is NonNullable<typeof row> => row != null).sort((a, b) => a.healthScore - b.healthScore);
+  }
+
+  private async safeCall<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[mission-control] ${label} unavailable`, err);
+      }
+      return undefined;
+    }
   }
 
   private async safeMetric<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {

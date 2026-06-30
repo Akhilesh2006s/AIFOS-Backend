@@ -344,17 +344,26 @@ export class DocumentsService {
   }
 
   async getOperationsMetrics() {
-    const dash = await this.getCenterDashboard();
-    const pending = await this.model.countDocuments({ approvalStatus: 'pending', status: 'active', isLatest: { $ne: false } });
-    const recent = await this.model.find({ status: 'active', isLatest: { $ne: false } })
-      .sort({ uploadedAt: -1 }).limit(5).lean();
+    try {
+      const dash = await this.getCenterDashboard();
+      const pending = await this.model.countDocuments({ approvalStatus: 'pending', status: 'active', isLatest: { $ne: false } });
+      const recent = await this.model.find({ status: 'active', isLatest: { $ne: false } })
+        .sort({ uploadedAt: -1 }).limit(5).lean();
 
-    return {
-      pendingDocumentApprovals: pending,
-      totalDocuments: dash.totalDocuments,
-      recentUploads: recent.map((d) => this.toCenterItem(d)),
-      links: dash.links,
-    };
+      return {
+        pendingDocumentApprovals: pending,
+        totalDocuments: dash.totalDocuments,
+        recentUploads: recent.map((d) => this.toCenterItem(d)),
+        links: dash.links,
+      };
+    } catch {
+      return {
+        pendingDocumentApprovals: 0,
+        totalDocuments: 0,
+        recentUploads: [],
+        links: { center: '/business/documents', pending: '/business/documents?tab=approvals', archive: '/business/documents?tab=archive' },
+      };
+    }
   }
 
   entityLink(entityType?: string, entityId?: string, projectId?: string): string {

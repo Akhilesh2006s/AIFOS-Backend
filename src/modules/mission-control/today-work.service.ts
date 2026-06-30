@@ -12,6 +12,7 @@ import { ProjectIssue, ProjectIssueDocument } from '../projects/schemas/project-
 import { Material, MaterialDocument } from '../inventory/schemas/inventory.schema';
 import { ComplianceService } from '../compliance/compliance.service';
 import { BusinessService } from '../business/business.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 export interface WorkQueueItem {
   id: string;
@@ -46,13 +47,14 @@ export class TodayWorkService {
     @InjectModel(Material.name) private materialModel: Model<MaterialDocument>,
     private compliance: ComplianceService,
     private business: BusinessService,
+    private inventory: InventoryService,
   ) {}
 
   async getForRole(role: string): Promise<RoleTodayWork> {
-    if (['executive', 'coo', 'org_admin'].includes(role)) {
+    if (['executive', 'coo', 'org_admin', 'admin'].includes(role)) {
       return this.buildExecutiveDecisions();
     }
-    if (role === 'project_manager' || role === 'project_director') {
+    if (role === 'project_manager' || role === 'project_director' || role === 'site_engineer') {
       return this.buildProjectManagerQueue();
     }
     if (role === 'procurement_manager') {
@@ -64,7 +66,16 @@ export class TodayWorkService {
     if (role === 'finance_manager') {
       return this.buildFinanceQueue();
     }
-    return this.buildExecutiveDecisions();
+    if (role === 'equipment_manager' || role === 'maintenance_manager' || role === 'fleet_manager') {
+      return this.buildAssetsQueue();
+    }
+    if (role === 'supervisor' || role === 'contractor_supervisor') {
+      return this.buildWorkforceQueue();
+    }
+    if (role === 'safety_officer' || role === 'quality_engineer') {
+      return this.buildQualitySafetyQueue(role);
+    }
+    return this.buildProjectManagerQueue();
   }
 
   async buildExecutiveDecisions(): Promise<RoleTodayWork> {
@@ -344,12 +355,12 @@ export class TodayWorkService {
     ]);
 
     const items: WorkQueueItem[] = [
-      { id: 'grn-today', label: `${todayGrn || 3} truck(s) / GRN arriving today`, priority: 'high', link: '/inventory?tab=grn', category: 'inbound' },
+      { id: 'grn-today', label: `${todayGrn} GRN(s) received today`, priority: todayGrn > 0 ? 'high' : 'medium', link: '/inventory?tab=grn', category: 'inbound' },
       { id: 'grn-pending', label: `${pendingGrn} GRN pending QC / receipt`, priority: pendingGrn > 5 ? 'critical' : 'high', link: '/inventory?tab=grn', category: 'inbound' },
       { id: 'issues', label: `${openIssues} material issue(s) to process`, priority: 'medium', link: '/inventory?tab=issues', category: 'outbound' },
     ];
 
-    const lowStock = await this.materialModel.countDocuments({ reorderLevel: { $gt: 0 } });
+    const lowStock = await this.inventory.countLowStockMaterials();
     if (lowStock > 0) {
       items.push({ id: 'low-stock', label: `${lowStock} SKU(s) below reorder level`, priority: 'high', link: '/inventory?tab=materials', category: 'stock' });
     }
@@ -422,6 +433,65 @@ export class TodayWorkService {
       subtitle: 'Approvals, exceptions, and payments',
       items: items.length ? items : [{ id: 'clear', label: 'No blocked payments — review dashboard', priority: 'low', link: '/business', category: 'overview' }],
       estimatedMinutes: items.length * 3,
+    };
+  }
+
+  async buildAssetsQueue(): Promise<RoleTodayWork> {
+    const [breakdowns, idle] = await Promise.all([
+      this.equipModel.countDocuments({ status: 'breakdown' }),
+      this.equipModel.countDocuments({ status: { $in: ['idle', 'available'] } }),
+    ]);
+    const items: WorkQueueItem[] = [];
+    if (breakdowns > 0) {
+      items.push({ id: 'breakdowns', label: `${breakdowns} equipment breakdown(s)`, priority: 'critical', link: '/maintenance?tab=breakdowns', category: 'maintenance' });
+    }
+    if (idle > 0) {
+      items.push({ id: 'idle', label: `${idle} idle asset(s) — review utilization`, priority: 'medium', link: '/equipment?status=idle', category: 'assets' });
+    }
+    return {
+      title: "Today's Assets",
+      subtitle: 'Equipment and maintenance priorities',
+      items: items.length ? items : [{ id: 'ok', label: 'No critical asset actions', priority: 'low', link: '/assets', category: 'overview' }],
+      estimatedMinutes: Math.max(5, items.length * 3),
+    };
+  }
+
+  async buildWorkforceQueue(): Promise<RoleTodayWork> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [missingAttendance, openPermits] = await Promise.all([
+      this.issueProjModel.db.collection('wf_attendance').countDocuments({ date: { $gte: today }, status: 'absent' }),
+      this.issueProjModel.db.collection('wf_permits').countDocuments({ status: { $in: ['pending', 'submitted'] } }),
+    ]);
+    const items: WorkQueueItem[] = [];
+    if (openPermits > 0) {
+      items.push({ id: 'permits', label: `${openPermits} permit(s) pending approval`, priority: 'high', link: '/workforce?tab=permits', category: 'permits' });
+    }
+    if (missingAttendance > 0) {
+      items.push({ id: 'attendance', label: `${missingAttendance} attendance exception(s) today`, priority: 'medium', link: '/workforce?tab=attendance', category: 'attendance' });
+    }
+    return {
+      title: "Today's Workforce",
+      subtitle: 'Site crew and permit actions',
+      items: items.length ? items : [{ id: 'ok', label: 'No urgent workforce items', priority: 'low', link: '/workforce', category: 'overview' }],
+      estimatedMinutes: Math.max(5, items.length * 2),
+    };
+  }
+
+  async buildQualitySafetyQueue(role: string): Promise<RoleTodayWork> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const collection = role === 'safety_officer' ? 'wf_safety_incidents' : 'wf_quality_ncrs';
+    const openCount = await this.issueProjModel.db.collection(collection).countDocuments({ status: { $in: ['open', 'pending', 'submitted'] } });
+    const tab = role === 'safety_officer' ? 'safety' : 'quality';
+    const items: WorkQueueItem[] = openCount > 0
+      ? [{ id: 'open-items', label: `${openCount} open ${role === 'safety_officer' ? 'safety' : 'quality'} item(s)`, priority: 'high', link: `/workforce?tab=${tab}`, category: tab }]
+      : [{ id: 'ok', label: 'No open incidents — review dashboard', priority: 'low', link: `/workforce?tab=${tab}`, category: tab }];
+    return {
+      title: role === 'safety_officer' ? "Today's Safety" : "Today's Quality",
+      subtitle: 'Inspections and corrective actions',
+      items,
+      estimatedMinutes: 10,
     };
   }
 }

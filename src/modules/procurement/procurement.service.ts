@@ -121,15 +121,21 @@ export class ProcurementService {
     siteId?: string;
     title?: string;
     requestedBy?: string;
-    lines?: Array<{ materialId: string; description?: string; quantity: number; unit: string; estimatedCost?: number }>;
+    lines?: Array<{ materialId?: string; description?: string; quantity: number; unit: string; estimatedCost?: number; estimatedRate?: number }>;
+    items?: Array<{ materialId?: string; boqLineId?: string; description: string; quantity: number; unit: string; estimatedRate?: number; estimatedCost?: number }>;
   }) {
-    const items = (mr.lines || []).map((l) => ({
-      materialId: l.materialId,
-      description: l.description,
-      quantity: l.quantity,
-      unit: l.unit,
-      estimatedCost: l.estimatedCost || 0,
-    }));
+    const sourceLines = mr.items ?? mr.lines ?? [];
+    const items = sourceLines.map((l) => {
+      const rate = l.estimatedRate ?? (l.estimatedCost != null && l.quantity ? l.estimatedCost / l.quantity : 0);
+      const estimatedCost = l.estimatedCost ?? rate * (l.quantity || 1);
+      return {
+        materialId: l.materialId || 'mat-001',
+        description: l.description,
+        quantity: l.quantity,
+        unit: l.unit,
+        estimatedCost,
+      };
+    });
     return this.createPR({
       title: mr.title || `MR-${mr._id.toString().slice(-6)}`,
       projectId: String(mr.projectId),

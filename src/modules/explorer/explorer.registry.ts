@@ -119,6 +119,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'inv_grns',
     titleFields: ['grnNumber'],
     statusField: 'status',
+    auditEntityType: 'grn',
     chainTemplate: [
       { key: 'po', label: 'Purchase Order', fk: 'purchaseOrderId', entityType: 'purchase-order' },
       { key: 'grn', label: 'GRN' },
@@ -155,15 +156,15 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
   },
   consumption: {
     collection: 'cons_entries',
-    titleFields: ['entryNumber', 'materialName'],
-    statusField: 'status',
+    titleFields: ['entryType', 'materialId'],
+    statusField: 'entryType',
     chainTemplate: [
-      { key: 'issue', label: 'Material Issue', entityType: 'material-issue' },
+      { key: 'issue', label: 'Material Issue', fk: 'materialIssueId', entityType: 'material-issue' },
       { key: 'consumption', label: 'Consumption' },
       { key: 'project', label: 'Project', fk: 'projectId', entityType: 'project' },
       { key: 'milestone', label: 'Milestone', entityType: 'milestone' },
     ],
-    fkMap: { projectId: 'project', siteId: 'site' },
+    fkMap: { projectId: 'project', siteId: 'site', materialIssueId: 'material-issue' },
   },
   vendor: {
     collection: 'proc_vendors',
@@ -203,6 +204,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'fin_payments',
     titleFields: ['paymentNumber'],
     statusField: 'status',
+    auditEntityType: 'payment',
     chainTemplate: [
       { key: 'bill', label: 'Vendor Bill', fk: 'vendorBillId', entityType: 'vendor-bill' },
       { key: 'payment', label: 'Payment' },
@@ -239,7 +241,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
   },
   maintenance: {
     collection: 'maint_work_orders',
-    titleFields: ['workOrderNumber', 'title'],
+    titleFields: ['woNumber', 'title'],
     statusField: 'status',
     chainTemplate: [
       { key: 'equip', label: 'Equipment', fk: 'equipmentId', entityType: 'equipment' },
@@ -312,6 +314,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'wf_permits',
     titleFields: ['permitNumber', 'workType'],
     statusField: 'status',
+    auditEntityType: 'work_permit',
     chainTemplate: [
       { key: 'employee', label: 'Requester', entityType: 'employee' },
       { key: 'permit', label: 'Permit' },
@@ -335,8 +338,9 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
   },
   inspection: {
     collection: 'wf_quality_inspections',
-    titleFields: ['inspectionNumber', 'title'],
+    titleFields: ['inspectionNumber', 'inspectionType'],
     statusField: 'status',
+    auditEntityType: 'quality_inspection',
     chainTemplate: [
       { key: 'inspection', label: 'Inspection' },
       { key: 'ncr', label: 'NCR', entityType: 'ncr' },
@@ -349,6 +353,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'wf_ncr',
     titleFields: ['ncrNumber', 'title'],
     statusField: 'status',
+    auditEntityType: 'ncr',
     chainTemplate: [
       { key: 'inspection', label: 'Inspection', entityType: 'inspection' },
       { key: 'ncr', label: 'NCR' },
@@ -361,6 +366,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'wf_capa',
     titleFields: ['capaNumber', 'title'],
     statusField: 'status',
+    auditEntityType: 'capa',
     chainTemplate: [
       { key: 'ncr', label: 'NCR', fk: 'ncrId', entityType: 'ncr' },
       { key: 'capa', label: 'CAPA' },
@@ -385,6 +391,7 @@ export const ENTITY_REGISTRY: Record<ExplorerEntityType, EntityRegistryEntry> = 
     collection: 'comp_records',
     titleFields: ['documentNumber', 'documentType'],
     statusField: 'status',
+    auditEntityType: 'compliance_record',
     chainTemplate: [
       { key: 'compliance', label: 'Compliance Record' },
       { key: 'entity', label: 'Linked Asset/Employee' },

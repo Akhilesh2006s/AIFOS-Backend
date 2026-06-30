@@ -21,6 +21,17 @@ describe('role-permissions', () => {
     expect(roleCanAccess('unknown_role', '/api/v1/admin/users')).toBe(false);
   });
 
+  it('denies org_admin from procurement API', () => {
+    expect(roleCanAccess('org_admin', '/api/v1/procurement/purchase-requests')).toBe(false);
+    expect(roleCanAccess('org_admin', '/api/v1/admin/users')).toBe(true);
+  });
+
+  it('requires scoped explorer permission by entity', () => {
+    expect(roleCanAccess('store_keeper', '/api/v1/explorer/grn/abc')).toBe(true);
+    expect(roleCanAccess('store_keeper', '/api/v1/explorer/purchase-order/abc')).toBe(false);
+    expect(roleCanAccess('contractor_supervisor', '/api/v1/explorer/purchase-order/abc')).toBe(false);
+  });
+
   it('defines permissions for all demo roles', () => {
     const demoRoles = [
       'procurement_manager',

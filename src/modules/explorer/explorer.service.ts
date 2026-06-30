@@ -19,7 +19,7 @@ import {
   ExplorerRelationship,
 } from './explorer.types';
 import { ExplorerEntityHandlers } from './explorer.entity-handlers';
-import { buildWorkflowFromStatus, finalizeExplorerView } from './explorer.view-builder';
+import { buildWorkflowFromStatus, finalizeExplorerView, chainStatusForValue } from './explorer.view-builder';
 import { normalizeExplorerType } from './explorer.links';
 
 @Injectable()
@@ -66,6 +66,8 @@ export class ExplorerService {
         return this.entityHandlers.exploreEmployee(entityId);
       case 'permit':
         return this.entityHandlers.explorePermit(entityId);
+      case 'payment':
+        return this.entityHandlers.explorePayment(entityId);
       default:
         if (ALL_EXPLORER_ENTITY_TYPES.includes(entityType)) {
           return this.entityHandlers.exploreGeneric(entityType, entityId);
@@ -271,6 +273,11 @@ export class ExplorerService {
       .reduce((s, b) => s + (b.totalAmount ?? 0), 0);
 
     const projects = [...new Set(pos.map((p) => p.projectId))].length;
+    const firstPo = pos[0];
+    const firstBill = bills[0];
+    const firstPayment = firstBill
+      ? await this.vendorModel.db.collection('fin_payments').findOne({ vendorBillId: String(firstBill._id) })
+      : null;
 
     return finalizeExplorerView({
       entityType: 'vendor',
@@ -282,12 +289,12 @@ export class ExplorerService {
       workflow: buildWorkflowFromStatus('vendor', vendor.status, vendor.contactPerson),
       currentChainKey: 'vendor',
       chain: [
-        { key: 'vendor', label: vendor.name, status: 'active', detail: `GSTIN ${vendor.gstin ?? '—'}` },
-        { key: 'pr', label: 'Open PRs', status: prs.length > 0 ? 'waiting' : 'complete', detail: `${prs.length} in pipeline` },
-        { key: 'po', label: 'Purchase orders', status: pos.length > 0 ? 'active' : 'not_started', detail: `${pos.length} total` },
+        { key: 'vendor', label: vendor.name, status: 'active', detail: `GSTIN ${vendor.gstin ?? '—'}`, entityType: 'vendor', entityId: vendorId },
+        { key: 'pr', label: 'Open PRs', status: prs.length > 0 ? 'waiting' : 'complete', detail: `${prs.length} in pipeline`, entityType: prs[0] ? 'purchase-request' : undefined, entityId: prs[0] ? String(prs[0]._id) : undefined },
+        { key: 'po', label: 'Purchase orders', status: pos.length > 0 ? 'active' : 'not_started', detail: `${pos.length} total`, entityType: firstPo ? 'purchase-order' : undefined, entityId: firstPo ? String(firstPo._id) : undefined },
         { key: 'delivery', label: 'Deliveries', status: latePos.length > 0 ? 'delayed' : 'complete', detail: `${latePos.length} late` },
-        { key: 'bills', label: 'Vendor bills', status: outstanding > 0 ? 'waiting' : 'not_started', detail: `₹${(outstanding / 10000000).toFixed(2)} Cr outstanding` },
-        { key: 'payment', label: 'Payments', status: pendingPay > 0 ? 'waiting' : 'complete', detail: `₹${(pendingPay / 100000).toFixed(0)}L pending` },
+        { key: 'bills', label: 'Vendor bills', status: outstanding > 0 ? 'waiting' : 'not_started', detail: `₹${(outstanding / 10000000).toFixed(2)} Cr outstanding`, entityType: firstBill ? 'vendor-bill' : undefined, entityId: firstBill ? String(firstBill._id) : undefined },
+        { key: 'payment', label: 'Payments', status: pendingPay > 0 ? 'waiting' : 'complete', detail: `₹${(pendingPay / 100000).toFixed(0)}L pending`, entityType: firstPayment ? 'payment' : undefined, entityId: firstPayment ? String(firstPayment._id) : undefined },
       ],
       relationships: pos.slice(0, 5).map((po) => ({
         role: 'PO',
@@ -511,36 +518,47 @@ export class ExplorerService {
     if (!po) throw new NotFoundException('Purchase order not found');
     const vendor = await this.vendorModel.findById(po.vendorId);
     const pr = await this.prModel.findById(po.purchaseRequisitionId);
+    const grns = await this.poModel.db.collection('inv_grns').find({ purchaseOrderId: id }).limit(3).toArray();
+    const grn = grns[0];
+    const poStatus = po.status;
 
     return finalizeExplorerView({
       entityType: 'purchase-order',
       entityId: id,
       title: po.poNumber,
       subtitle: vendor?.name ?? 'Purchase order',
-      status: po.status,
+      status: poStatus,
       projectId: po.projectId,
-      workflow: buildWorkflowFromStatus('purchase-order', po.status),
+      projectName: po.projectId ? (await this.projectModel.findById(po.projectId))?.name : undefined,
+      workflow: buildWorkflowFromStatus('purchase-order', poStatus),
       currentChainKey: 'po',
       chain: [
         { key: 'pr', label: pr?.prNumber ?? 'PR', status: 'complete', entityType: 'purchase-request', entityId: pr ? String(pr._id) : undefined },
-        { key: 'po', label: po.poNumber, status: 'active' },
-        { key: 'grn', label: 'GRN', status: ['issued', 'partial'].includes(po.status) ? 'waiting' : 'not_started' },
-        { key: 'wh', label: 'Warehouse', status: 'not_started' },
-        { key: 'issue', label: 'Material issue', status: 'not_started' },
+        { key: 'po', label: po.poNumber, status: chainStatusForValue(poStatus) },
+        { key: 'grn', label: grn ? String(grn.grnNumber) : 'GRN', status: grn ? 'complete' : ['issued', 'partial_received', 'received'].includes(poStatus) ? 'waiting' : 'not_started', entityType: grn ? 'grn' : undefined, entityId: grn ? String(grn._id) : undefined },
+        { key: 'wh', label: 'Warehouse', status: grn ? 'complete' : 'not_started' },
+        { key: 'issue', label: 'Material issue', status: 'not_started', entityType: 'material-issue' },
       ],
       relationships: [
         ...(pr ? [{ role: 'PR', label: pr.prNumber, entityType: 'purchase-request' as const, entityId: String(pr._id) }] : []),
         ...(vendor ? [{ role: 'Vendor', label: vendor.name, entityType: 'vendor' as const, entityId: String(vendor._id) }] : []),
+        ...(grn ? [{ role: 'GRN', label: String(grn.grnNumber), entityType: 'grn' as const, entityId: String(grn._id) }] : []),
       ],
       kpis: [
         { label: 'Amount', value: `₹${(po.totalAmount / 100000).toFixed(1)}L` },
-        { label: 'Status', value: po.status },
+        { label: 'Status', value: poStatus },
+        { label: 'GRNs', value: grns.length },
       ],
       financial: { label: 'PO value', amount: po.totalAmount },
+      intelligence: ['draft'].includes(poStatus)
+        ? { recommendation: 'PO in draft — approve and issue before GRN can be recorded.', severity: 'medium', actionLabel: 'Approve PO' }
+        : !grn && ['issued', 'partial_received'].includes(poStatus)
+          ? { recommendation: 'PO issued — record GRN when goods arrive at warehouse.', severity: 'medium', actionLabel: 'Receive GRN' }
+          : undefined,
       timeline: [],
-      activities: [],
+      activities: po.projectId ? await this.loadActivities(po.projectId, id) : [],
       audit: [],
-      documents: [],
+      documents: po.projectId ? await this.loadProjectDocuments(po.projectId) : [],
     });
   }
 

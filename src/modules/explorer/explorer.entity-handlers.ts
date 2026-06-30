@@ -55,11 +55,12 @@ export class ExplorerEntityHandlers {
     const intelligence = await this.buildIntelligence(entityType, doc, projectId);
     const amount = Number(doc.totalAmount ?? doc.totalEstimatedCost ?? doc.amount ?? 0) || undefined;
 
-    const [audit, activities] = await Promise.all([
+    const [audit, activities, documents] = await Promise.all([
       config.auditEntityType
         ? this.audit.findForEntity(config.auditEntityType, id, 12)
         : Promise.resolve([]),
       projectId ? this.loadActivities(projectId, id) : Promise.resolve([]),
+      projectId ? this.loadProjectDocuments(projectId) : Promise.resolve([]),
     ]);
 
     const partial: Omit<ExplorerView, 'upstream' | 'downstream' | 'breadcrumbs'> & { currentChainKey?: string } = {
@@ -85,7 +86,7 @@ export class ExplorerEntityHandlers {
         detail: a.entityType,
         actor: a.userName,
       })),
-      documents: [],
+      documents,
       nextAction: intelligence?.actionLabel
         ? { label: intelligence.actionLabel, detail: intelligence.recommendation, urgency: intelligence.severity === 'critical' ? 'critical' : 'high' }
         : undefined,
@@ -104,11 +105,15 @@ export class ExplorerEntityHandlers {
     else if (po) {
       grn = await this.conn.collection('inv_grns').findOne({ purchaseOrderId: String(po._id) }) as Doc | null;
     }
+    const payment = await this.conn.collection('fin_payments').findOne({
+      vendorBillId: id,
+      status: { $ne: 'cancelled' },
+    }) as Doc | null;
 
     const matchSummary = doc.matchSummary as { grnPresent?: boolean } | undefined;
     const intelligence = generateIntelligence('vendor-bill', doc, {
       grnStatus: grn ? String(grn.status) : undefined,
-      grnNumber: grn ? String(grn.grnNumber) : 'GRN-2034',
+      grnNumber: grn ? String(grn.grnNumber) : undefined,
       matchSummary,
     }) ?? base.intelligence;
 
@@ -116,11 +121,11 @@ export class ExplorerEntityHandlers {
       { key: 'bill', label: String(doc.billNumber ?? 'Vendor Bill'), status: chainStatusForValue(String(doc.status)), detail: String(doc.invoiceNumber ?? '') },
       { key: 'po', label: po?.poNumber ?? 'Purchase Order', status: po ? 'complete' : 'not_started', entityType: 'purchase-order', entityId: po ? String(po._id) : doc.purchaseOrderId ? String(doc.purchaseOrderId) : undefined },
       { key: 'grn', label: grn ? String(grn.grnNumber) : 'GRN', status: grn ? chainStatusForValue(String(grn.status)) : 'blocked', detail: grn ? String(grn.status) : 'Pending receipt', entityType: grn ? 'grn' : undefined, entityId: grn ? String(grn._id) : undefined },
-      { key: 'warehouse', label: 'Warehouse', status: grn && String(grn.status).includes('complete') ? 'complete' : 'waiting' },
+      { key: 'warehouse', label: 'Warehouse', status: grn ? 'complete' : 'waiting' },
       { key: 'project', label: base.projectName ?? 'Project', status: 'active', entityType: 'project', entityId: base.projectId },
       { key: 'budget', label: 'Budget Impact', status: 'active', detail: base.financial?.amount ? `₹${(base.financial.amount / 100000).toFixed(1)}L` : undefined },
-      { key: 'payment', label: 'Payment', status: String(doc.status) === 'paid' ? 'complete' : String(doc.status) === 'ready_for_payment' ? 'waiting' : 'not_started', entityType: 'payment' },
-      { key: 'cashflow', label: 'Cash Flow', status: 'waiting', detail: 'Executive cash forecast' },
+      { key: 'payment', label: payment ? String(payment.paymentNumber) : 'Payment', status: String(doc.status) === 'paid' ? 'complete' : String(doc.status) === 'ready_for_payment' ? 'waiting' : 'not_started', entityType: payment ? 'payment' : undefined, entityId: payment ? String(payment._id) : undefined },
+      { key: 'cashflow', label: 'Cash Flow', status: payment?.status === 'paid' ? 'complete' : 'waiting', detail: 'Executive cash forecast' },
     ];
 
     return finalizeExplorerView({
@@ -160,6 +165,64 @@ export class ExplorerEntityHandlers {
     }) ?? base.intelligence;
 
     return finalizeExplorerView({ ...base, intelligence, currentChainKey: 'permit' });
+  }
+
+  async explorePayment(id: string): Promise<ExplorerView> {
+    const base = await this.exploreGeneric('payment', id);
+    const doc = await this.loadDoc('fin_payments', id) as Doc;
+    const billId = doc.vendorBillId ? String(doc.vendorBillId) : undefined;
+    const bill = billId ? await this.loadDoc('fin_vendor_bills', billId) : null;
+    const vendorId = doc.vendorId ? String(doc.vendorId) : undefined;
+    const vendor = vendorId ? await this.loadDoc('proc_vendors', vendorId) : null;
+
+    const chain: ExplorerChainNode[] = [
+      {
+        key: 'bill',
+        label: bill ? pickTitle(bill, ['billNumber', 'invoiceNumber']) : 'Vendor Bill',
+        status: bill ? 'complete' : 'not_started',
+        entityType: billId ? 'vendor-bill' : undefined,
+        entityId: billId,
+      },
+      {
+        key: 'payment',
+        label: pickTitle(doc, ['paymentNumber']),
+        status: chainStatusForValue(String(doc.status)),
+        entityType: 'payment',
+        entityId: id,
+      },
+      {
+        key: 'cashflow',
+        label: 'Cash Flow',
+        status: doc.status === 'paid' ? 'complete' : 'waiting',
+        detail: 'Treasury cash forecast',
+      },
+    ];
+
+    const relationships = [
+      ...(billId ? [{
+        role: 'vendor bill',
+        label: bill ? pickTitle(bill, ['billNumber', 'invoiceNumber']) : billId,
+        entityType: 'vendor-bill' as const,
+        entityId: billId,
+      }] : []),
+      ...(vendorId ? [{
+        role: 'vendor',
+        label: vendor ? pickTitle(vendor, ['name']) : vendorId,
+        entityType: 'vendor' as const,
+        entityId: vendorId,
+      }] : []),
+    ];
+
+    return finalizeExplorerView({
+      ...base,
+      chain,
+      relationships: [...relationships, ...base.relationships],
+      currentChainKey: 'payment',
+      financial: { label: 'Payment amount', amount: Number(doc.amount ?? 0), detail: doc.dueDate ? `Due ${new Date(String(doc.dueDate)).toLocaleDateString()}` : undefined },
+      workflow: buildWorkflowFromStatus('payment', String(doc.status), doc.approvedBy as string | undefined),
+      intelligence: generateIntelligence('payment', doc) ?? base.intelligence,
+      timeline: this.extractTimeline(doc),
+    });
   }
 
   private async loadDoc(collection: string, id: string): Promise<Doc | null> {
@@ -226,6 +289,13 @@ export class ExplorerEntityHandlers {
     if (doc.priority) kpis.push({ label: 'Priority', value: String(doc.priority) });
     if (doc.rating) kpis.push({ label: 'Rating', value: `${doc.rating}/5` });
     if (doc.utilizationPercent != null) kpis.push({ label: 'Utilization', value: `${doc.utilizationPercent}%` });
+    if (entityType === 'consumption') {
+      kpis.push({ label: 'Quantity', value: String(doc.quantity ?? 0) });
+      if (doc.unit) kpis.push({ label: 'Unit', value: String(doc.unit) });
+    }
+    if (entityType === 'payment' && doc.amount != null) {
+      kpis.push({ label: 'Amount', value: `₹${Number(doc.amount).toLocaleString()}` });
+    }
     return kpis;
   }
 
@@ -243,14 +313,25 @@ export class ExplorerEntityHandlers {
   }
 
   private extractTimeline(doc: Doc): ExplorerView['timeline'] {
-    const history = (doc.statusHistory ?? doc.approvalTrail ?? []) as Array<{
-      at?: Date; action?: string; remarks?: string; by?: string; approvedAt?: Date; approvedBy?: string; status?: string;
+    const history = (doc.statusHistory ?? doc.approvalTrail ?? doc.auditTrail ?? doc.timeline ?? []) as Array<{
+      at?: Date; action?: string; remarks?: string; by?: string; approvedAt?: Date; approvedBy?: string; status?: string; actor?: string; comment?: string;
     }>;
     return history.map((h) => ({
       at: (h.at ?? h.approvedAt)?.toISOString?.() ?? new Date().toISOString(),
       title: h.action ?? h.status ?? 'Update',
-      detail: h.remarks,
-      actor: h.by ?? h.approvedBy,
+      detail: h.remarks ?? h.comment,
+      actor: h.by ?? h.approvedBy ?? h.actor,
+    }));
+  }
+
+  private async loadProjectDocuments(projectId: string) {
+    const oid = Types.ObjectId.isValid(projectId) ? new Types.ObjectId(projectId) : projectId;
+    const docs = await this.conn.collection('proj_documents')
+      .find({ $or: [{ projectId }, { projectId: oid }] }).limit(12).toArray();
+    return docs.map((d) => ({
+      id: String(d._id),
+      title: String(d.title ?? 'Document'),
+      category: String(d.category ?? 'general'),
     }));
   }
 

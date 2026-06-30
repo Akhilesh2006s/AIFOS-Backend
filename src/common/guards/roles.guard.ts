@@ -25,7 +25,8 @@ export class RolesGuard implements CanActivate {
     const url = String(request.originalUrl || request.url || '').split('?')[0];
     const method = request.method as string;
 
-    if (requiredRoles?.length && !requiredRoles.includes(role) && role !== 'admin') {
+    const elevatedRoles = ['admin', 'executive', 'coo'];
+    if (requiredRoles?.length && !requiredRoles.includes(role) && !elevatedRoles.includes(role)) {
       throw new ForbiddenException(`Role ${role} not permitted for this action`);
     }
 

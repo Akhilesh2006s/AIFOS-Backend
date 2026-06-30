@@ -54,7 +54,7 @@ export class SupplyChainService {
       this.rfqModel.countDocuments({ ...filter, status: { $in: ['published', 'open'] } }),
       this.poModel.countDocuments({ ...filter, status: { $in: ['draft', 'pending_approval'] } }),
       this.grnModel.countDocuments({ ...filter, receivedAt: { $gte: today } }),
-      this.materialModel.countDocuments({ reorderLevel: { $gt: 0 }, status: 'active' }),
+      this.inventory.countLowStockMaterials(),
       this.issueModel.countDocuments({ ...filter, status: { $in: ['pending', 'pending_approval'] } }),
       this.notifications.findForProject(projectId || '', 12),
       this.poModel.aggregate([
