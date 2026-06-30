@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { CreateMaterialDto, UpdateMaterialDto, CreateMovementDto } from './dto/inventory.dto';
 
 @ApiTags('Inventory')
@@ -9,7 +10,10 @@ import { CreateMaterialDto, UpdateMaterialDto, CreateMovementDto } from './dto/i
 export class InventoryController implements OnModuleInit {
   constructor(private readonly service: InventoryService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
 

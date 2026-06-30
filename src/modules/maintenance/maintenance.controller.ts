@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MaintenanceService } from './maintenance.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { CreateWorkOrderDto, UpdateWorkOrderDto } from './dto/work-order.dto';
 
 @ApiTags('Maintenance')
@@ -9,7 +10,10 @@ import { CreateWorkOrderDto, UpdateWorkOrderDto } from './dto/work-order.dto';
 export class MaintenanceController implements OnModuleInit {
   constructor(private readonly service: MaintenanceService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
   @Get('calendar') getCalendar() { return this.service.getCalendar(); }

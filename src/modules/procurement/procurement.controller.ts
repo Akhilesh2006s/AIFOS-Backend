@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProcurementService } from './procurement.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { CreatePurchaseRequestDto } from './dto/create-pr.dto';
 import { CreateVendorDto, UpdateVendorDto, UpdatePurchaseRequestDto } from './dto/vendor.dto';
 
@@ -10,7 +11,10 @@ import { CreateVendorDto, UpdateVendorDto, UpdatePurchaseRequestDto } from './dt
 export class ProcurementController implements OnModuleInit {
   constructor(private readonly service: ProcurementService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
 

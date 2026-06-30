@@ -12,6 +12,7 @@ import { OrgSettings, OrgSettingsDocument } from './schemas/org-settings.schema'
 import { OrgBranding, OrgBrandingDocument } from './schemas/org-branding.schema';
 import { OrgProjectAssignment, OrgProjectAssignmentDocument } from './schemas/org-project-assignment.schema';
 import { TenantContextService } from './tenant-context.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { ORG_UNIT_LABELS } from './platform.constants';
 import {
   AssignProjectDto, CreateOrgUnitDto, CreateParentCompanyDto,
@@ -33,6 +34,7 @@ export class PlatformService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     await this.seedEnterpriseHierarchy();
     await this.backfillProjectOrgIds();
   }

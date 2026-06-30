@@ -14,8 +14,11 @@ async function bootstrap() {
     throw new Error('JWT_SECRET must be set (minimum 32 characters) before starting the API');
   }
 
-  const app = await NestFactory.create(AppModule);
   const isProd = process.env.NODE_ENV === 'production';
+
+  const app = await NestFactory.create(AppModule, {
+    logger: isProd ? ['error', 'warn'] : undefined,
+  });
 
   app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 

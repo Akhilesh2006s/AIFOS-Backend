@@ -8,6 +8,7 @@ import { LocalizationOverride, LocalizationOverrideDocument } from './schemas/lo
 import { Project, ProjectDocument } from '../projects/schemas/project.schema';
 import { Organization, OrganizationDocument } from '../admin/schemas/organization.schema';
 import { TenantContextService } from './tenant-context.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import {
   COMPLIANCE_PACKS, COUNTRIES, CURRENCIES, DEFAULT_LOCALIZATION, LANGUAGES, TIMEZONES,
   getCountryDef, resolveLocaleKey,
@@ -29,6 +30,7 @@ export class GlobalEnterpriseService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     setTimeout(() => this.seedRegionalProfiles().catch(() => undefined), 4_000);
   }
 

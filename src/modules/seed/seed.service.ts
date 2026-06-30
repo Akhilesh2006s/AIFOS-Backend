@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
@@ -12,6 +13,10 @@ export class SeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) {
+      this.logger.log('Startup seed skipped (production or ENABLE_STARTUP_SEED=false)');
+      return;
+    }
     await this.seedAdmin();
     await this.seedDemoData();
   }

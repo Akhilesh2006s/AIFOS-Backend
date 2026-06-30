@@ -21,6 +21,7 @@ import {
   InviteUserDto, PatchPermissionsDto, ResetPasswordDto, UpdateOrganizationDto,
   UpdateRoleDto, UpdateSettingsDto,
 } from './dto/admin.dto';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 
 @Injectable()
 export class AdminService implements OnModuleInit {
@@ -36,6 +37,7 @@ export class AdminService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     await this.seedIfEmpty();
   }
 

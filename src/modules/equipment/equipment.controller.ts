@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EquipmentService } from './equipment.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { CreateEquipmentDto, UpdateEquipmentDto } from './dto/equipment.dto';
 
 @ApiTags('Equipment')
@@ -9,7 +10,10 @@ import { CreateEquipmentDto, UpdateEquipmentDto } from './dto/equipment.dto';
 export class EquipmentController implements OnModuleInit {
   constructor(private readonly service: EquipmentService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
   @Get('operators') findOperators() { return this.service.findAllOperators(); }

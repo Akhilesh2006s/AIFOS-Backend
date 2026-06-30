@@ -23,6 +23,7 @@ import {
 import {
   CreateProductivityDto, CreateTrainingDto, CreateSkillDto, CreateCertificationDto,
 } from './dto/intelligence.dto';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 
 @ApiTags('Workforce')
 @ApiBearerAuth()
@@ -37,6 +38,7 @@ export class WorkforceController implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     await this.service.seedIfEmpty();
     await this.safety.seedIfEmpty();
     await this.permits.seedIfEmpty();

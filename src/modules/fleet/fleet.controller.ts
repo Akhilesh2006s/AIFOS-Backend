@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FleetService } from './fleet.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto';
 
 @ApiTags('Fleet')
@@ -9,7 +10,10 @@ import { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto';
 export class FleetController implements OnModuleInit {
   constructor(private readonly service: FleetService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
   @Get('drivers') findDrivers() { return this.service.findDrivers(); }

@@ -20,6 +20,7 @@ import { DevApplication, DevApplicationDocument } from './schemas/dev-applicatio
 import { DevApiKey, DevApiKeyDocument } from './schemas/dev-api-key.schema';
 import { DevUsageRecord, DevUsageRecordDocument } from './schemas/dev-usage-record.schema';
 import { DevLicense, DevLicenseDocument } from './schemas/dev-license.schema';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 
 @Injectable()
 export class DeveloperService implements OnModuleInit {
@@ -34,6 +35,7 @@ export class DeveloperService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     await this.seed();
   }
 

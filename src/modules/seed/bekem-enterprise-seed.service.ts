@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { isEnterpriseSeedEnabled } from '../../common/config/startup-seed';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { Organization, OrganizationDocument } from '../admin/schemas/organization.schema';
@@ -32,7 +33,7 @@ export class BekemEnterpriseSeedService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    if (process.env.SEED_ENTERPRISE === 'false') return;
+    if (!isEnterpriseSeedEnabled()) return;
     setTimeout(() => this.run().catch((e) => this.logger.error(e)), 12_000);
   }
 

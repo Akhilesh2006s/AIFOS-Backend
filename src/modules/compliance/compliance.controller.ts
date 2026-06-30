@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ComplianceService } from './compliance.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import {
   CreateComplianceDto,
   UpdateComplianceDto,
@@ -17,7 +18,10 @@ import {
 export class ComplianceController implements OnModuleInit {
   constructor(private readonly service: ComplianceService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   private actor(req: { user?: { sub?: string; name?: string } }) {
     return req.user?.name || req.user?.sub || 'system';

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 
 @ApiTags('Vendors')
 @ApiBearerAuth()
@@ -8,7 +9,10 @@ import { VendorsService } from './vendors.service';
 export class VendorsController implements OnModuleInit {
   constructor(private service: VendorsService) {}
 
-  async onModuleInit() { await this.service.seedIfEmpty(); }
+  async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
+    await this.service.seedIfEmpty();
+  }
 
   @Get('stats') getStats() { return this.service.getStats(); }
   @Get() findAll() { return this.service.findAll(); }

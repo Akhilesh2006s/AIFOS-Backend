@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Organization, OrganizationDocument } from '../admin/schemas/organization.schema';
 import { OrgBranding, OrgBrandingDocument } from './schemas/org-branding.schema';
 import { TenantContextService } from './tenant-context.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { getThemeById, WHITELABEL_THEMES } from './whitelabel.constants';
 import { UpdateOrgBrandingDto } from './dto/platform.dto';
 
@@ -16,6 +17,7 @@ export class WhitelabelService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     setTimeout(() => this.seedWhiteLabelDefaults().catch(() => undefined), 5_000);
   }
 

@@ -1,4 +1,5 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { UsersService } from '../users/users.service';
@@ -27,6 +28,7 @@ export class BekemDemoService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
+    if (!isStartupSeedEnabled()) return;
     await this.seedDemoUsers();
     await this.enrichOperationalDemo();
     await this.audit.log({

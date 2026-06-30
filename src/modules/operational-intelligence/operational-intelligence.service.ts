@@ -4,6 +4,7 @@ import { RecommendationEngineService } from './recommendation-engine.service';
 import { PredictionEngineService } from './prediction-engine.service';
 import { RiskEngineService } from './risk-engine.service';
 import { ExecutiveIntelligenceService } from './executive-intelligence.service';
+import { isStartupSeedEnabled } from '../../common/config/startup-seed';
 
 @Injectable()
 export class OperationalIntelligenceService implements OnModuleInit {
@@ -16,6 +17,7 @@ export class OperationalIntelligenceService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (!isStartupSeedEnabled()) return;
     await this.rules.seedIfEmpty();
   }
 
