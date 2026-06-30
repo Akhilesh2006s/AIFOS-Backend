@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProcurementService } from './procurement.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { CreatePurchaseRequestDto } from './dto/create-pr.dto';
 import { CreateVendorDto, UpdateVendorDto, UpdatePurchaseRequestDto } from './dto/vendor.dto';
 
@@ -9,11 +9,12 @@ import { CreateVendorDto, UpdateVendorDto, UpdatePurchaseRequestDto } from './dt
 @ApiBearerAuth()
 @Controller('procurement')
 export class ProcurementController implements OnModuleInit {
+  private readonly logger = new Logger(ProcurementController.name);
+
   constructor(private readonly service: ProcurementService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Procurement', () => this.service.seedIfEmpty());
   }
 
   @Get('stats') getStats() { return this.service.getStats(); }

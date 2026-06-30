@@ -1,13 +1,15 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { RuleEngineService } from './rule-engine.service';
 import { RecommendationEngineService } from './recommendation-engine.service';
 import { PredictionEngineService } from './prediction-engine.service';
 import { RiskEngineService } from './risk-engine.service';
 import { ExecutiveIntelligenceService } from './executive-intelligence.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 
 @Injectable()
 export class OperationalIntelligenceService implements OnModuleInit {
+  private readonly logger = new Logger(OperationalIntelligenceService.name);
+
   constructor(
     private rules: RuleEngineService,
     private recommendations: RecommendationEngineService,
@@ -17,8 +19,7 @@ export class OperationalIntelligenceService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.rules.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Operational intelligence', () => this.rules.seedIfEmpty());
   }
 
   async getDashboard(projectId?: string) {

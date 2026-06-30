@@ -51,7 +51,7 @@ export class FinanceReadModelService implements OnModuleInit {
   onModuleInit() {
     this.financialEvents.register((event) => this.handleEvent(event));
     setTimeout(() => {
-      this.rebuildAll().catch((err) => this.logger.error('Initial financial rebuild failed', err));
+      this.rebuildAll().catch((err) => this.logger.error(`Initial financial rebuild failed: ${err instanceof Error ? err.message : err}`));
     }, 3000);
   }
 

@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FleetService } from './fleet.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto';
 
 @ApiTags('Fleet')
 @ApiBearerAuth()
 @Controller('fleet')
 export class FleetController implements OnModuleInit {
+  private readonly logger = new Logger(FleetController.name);
+
   constructor(private readonly service: FleetService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Fleet', () => this.service.seedIfEmpty());
   }
 
   @Get('stats') getStats() { return this.service.getStats(); }

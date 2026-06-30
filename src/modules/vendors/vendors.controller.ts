@@ -1,17 +1,18 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 
 @ApiTags('Vendors')
 @ApiBearerAuth()
 @Controller('vendors')
 export class VendorsController implements OnModuleInit {
+  private readonly logger = new Logger(VendorsController.name);
+
   constructor(private service: VendorsService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Vendors', () => this.service.seedIfEmpty());
   }
 
   @Get('stats') getStats() { return this.service.getStats(); }

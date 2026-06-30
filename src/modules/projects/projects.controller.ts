@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, OnModuleInit, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
 @Controller('projects')
 export class ProjectsController implements OnModuleInit {
+  private readonly logger = new Logger(ProjectsController.name);
+
   constructor(private readonly service: ProjectsService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Projects', () => this.service.seedIfEmpty());
   }
 
   private actor(req: { user?: { sub?: string; name?: string } }) {

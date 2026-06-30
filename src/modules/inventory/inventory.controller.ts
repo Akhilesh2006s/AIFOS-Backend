@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, OnModuleInit, Query, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { CreateMaterialDto, UpdateMaterialDto, CreateMovementDto } from './dto/inventory.dto';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
 @Controller('inventory')
 export class InventoryController implements OnModuleInit {
+  private readonly logger = new Logger(InventoryController.name);
+
   constructor(private readonly service: InventoryService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Inventory', () => this.service.seedIfEmpty());
   }
 
   @Get('stats') getStats() { return this.service.getStats(); }

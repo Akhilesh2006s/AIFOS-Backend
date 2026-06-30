@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query, Req, OnModuleInit,
+  Controller, Get, Post, Patch, Body, Param, Query, Req, OnModuleInit, Logger,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { WorkforceService } from './workforce.service';
@@ -23,12 +23,14 @@ import {
 import {
   CreateProductivityDto, CreateTrainingDto, CreateSkillDto, CreateCertificationDto,
 } from './dto/intelligence.dto';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 
 @ApiTags('Workforce')
 @ApiBearerAuth()
 @Controller('workforce')
 export class WorkforceController implements OnModuleInit {
+  private readonly logger = new Logger(WorkforceController.name);
+
   constructor(
     private readonly service: WorkforceService,
     private readonly safety: WorkforceSafetyService,
@@ -38,12 +40,13 @@ export class WorkforceController implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
-    await this.safety.seedIfEmpty();
-    await this.permits.seedIfEmpty();
-    await this.quality.seedIfEmpty();
-    await this.intelligence.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Workforce', async () => {
+      await this.service.seedIfEmpty();
+      await this.safety.seedIfEmpty();
+      await this.permits.seedIfEmpty();
+      await this.quality.seedIfEmpty();
+      await this.intelligence.seedIfEmpty();
+    });
   }
 
   private actor(req: { user?: { sub?: string; name?: string } }) {

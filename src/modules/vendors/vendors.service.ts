@@ -28,19 +28,22 @@ export class VendorsService {
 
   async seedIfEmpty() {
     if ((await this.model.countDocuments()) > 0) return;
-    await this.model.insertMany([
-      {
-        code: 'VND-001', name: 'Bekem Steel Supplies', contactPerson: 'Raj Kumar',
-        email: 'raj@bekemsteel.com', phone: '+91 98765 43210', gstin: '29AABCU9603R1ZM',
-        pan: 'AABCU9603R', status: 'approved', rating: 4.5, categories: ['Steel', 'Cement'],
-        onTimeDeliveryPercent: 92, qualityScore: 4.6,
-        bankDetails: { accountName: 'Bekem Steel', accountNumber: '1234567890', ifsc: 'HDFC0001234', bankName: 'HDFC' },
-      },
-      {
-        code: 'VND-002', name: 'Highway Materials Co.', contactPerson: 'Anita Desai',
-        email: 'anita@highwaymat.com', gstin: '27AABCH1234A1Z5', pan: 'AABCH1234A',
-        status: 'approved', rating: 4.8, categories: ['Aggregates'], onTimeDeliveryPercent: 88, qualityScore: 4.7,
-      },
-    ]);
+    await this.model.insertMany(
+      [
+        {
+          code: 'VND-001', name: 'Bekem Steel Supplies', contactPerson: 'Raj Kumar',
+          email: 'raj@bekemsteel.com', phone: '+91 98765 43210', gstin: '29AABCU9603R1ZM',
+          pan: 'AABCU9603R', status: 'approved', rating: 4.5, categories: ['Steel', 'Cement'],
+          onTimeDeliveryPercent: 92, qualityScore: 4.6,
+          bankDetails: { accountName: 'Bekem Steel', accountNumber: '1234567890', ifsc: 'HDFC0001234', bankName: 'HDFC' },
+        },
+        {
+          code: 'VND-002', name: 'Highway Materials Co.', contactPerson: 'Anita Desai',
+          email: 'anita@highwaymat.com', gstin: '27AABCH1234A1Z5', pan: 'AABCH1234A',
+          status: 'approved', rating: 4.8, categories: ['Aggregates'], onTimeDeliveryPercent: 88, qualityScore: 4.7,
+        },
+      ],
+      { ordered: false },
+    );
   }
 }

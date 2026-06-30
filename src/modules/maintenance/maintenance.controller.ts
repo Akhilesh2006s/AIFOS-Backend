@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, OnModuleInit, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MaintenanceService } from './maintenance.service';
-import { isStartupSeedEnabled } from '../../common/config/startup-seed';
+import { runStartupSeed } from '../../common/utils/startup-seed-runner';
 import { CreateWorkOrderDto, UpdateWorkOrderDto } from './dto/work-order.dto';
 
 @ApiTags('Maintenance')
 @ApiBearerAuth()
 @Controller('maintenance')
 export class MaintenanceController implements OnModuleInit {
+  private readonly logger = new Logger(MaintenanceController.name);
+
   constructor(private readonly service: MaintenanceService) {}
 
   async onModuleInit() {
-    if (!isStartupSeedEnabled()) return;
-    await this.service.seedIfEmpty();
+    await runStartupSeed(this.logger, 'Maintenance', () => this.service.seedIfEmpty());
   }
 
   @Get('stats') getStats() { return this.service.getStats(); }
