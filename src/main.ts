@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as dns from 'dns';
 import helmet from 'helmet';
 import compression from 'compression';
+import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { isProductionRuntime } from './common/config/runtime-env';
@@ -38,7 +39,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // Root path for browser / Railway probes (Nest routes live under /api/v1).
-  app.getHttpAdapter().getInstance().get('/', (_req, res) => {
+  app.getHttpAdapter().getInstance().get('/', (_req: Request, res: Response) => {
     res.redirect(302, '/api/v1/health');
   });
 
