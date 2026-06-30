@@ -26,25 +26,28 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   viewer: ['/projects', '/insights', '/mission-control', '/notifications', '/dashboards'],
 };
 
+/** Shared demo password — meets strong-password policy (12+ chars). */
+export const DEMO_PASSWORD = 'Bekem@Demo2026!';
+
 export const DEMO_USERS = [
-  { name: 'AFIOS Platform Admin', email: 'admin@afios.com', password: 'Admin@123', role: 'admin', department: 'Platform' },
-  { name: 'Bekem Organization Admin', email: 'admin@bekem.com', password: 'Bekem@123', role: 'org_admin', department: 'Executive' },
-  { name: 'Rajesh Kumar', email: 'ceo@bekem.com', password: 'Bekem@123', role: 'executive', department: 'Executive' },
-  { name: 'Vikram Desai', email: 'coo@bekem.com', password: 'Bekem@123', role: 'coo', department: 'Executive' },
-  { name: 'Priya Sharma', email: 'pm@bekem.com', password: 'Bekem@123', role: 'project_manager', department: 'Projects' },
-  { name: 'Venkat Rao', email: 'site@bekem.com', password: 'Bekem@123', role: 'site_engineer', department: 'Site' },
-  { name: 'Anil Reddy', email: 'procurement@bekem.com', password: 'Bekem@123', role: 'procurement_manager', department: 'Procurement' },
-  { name: 'Ramesh Naidu', email: 'warehouse@bekem.com', password: 'Bekem@123', role: 'warehouse_manager', department: 'Warehouse' },
-  { name: 'Suresh Goud', email: 'store@bekem.com', password: 'Bekem@123', role: 'store_keeper', department: 'Warehouse' },
-  { name: 'Kiran Patel', email: 'equipment@bekem.com', password: 'Bekem@123', role: 'equipment_manager', department: 'Assets' },
-  { name: 'Mahesh Singh', email: 'maintenance@bekem.com', password: 'Bekem@123', role: 'maintenance_manager', department: 'Maintenance' },
-  { name: 'Arjun Nair', email: 'safety@bekem.com', password: 'Bekem@123', role: 'safety_officer', department: 'Safety' },
-  { name: 'Meera Joshi', email: 'quality@bekem.com', password: 'Bekem@123', role: 'quality_engineer', department: 'Quality' },
-  { name: 'Lakshmi Iyer', email: 'compliance@bekem.com', password: 'Bekem@123', role: 'compliance_manager', department: 'Compliance' },
-  { name: 'Deepa Menon', email: 'finance@bekem.com', password: 'Bekem@123', role: 'finance_manager', department: 'Finance' },
-  { name: 'Sunita Verma', email: 'hr@bekem.com', password: 'Bekem@123', role: 'hr_manager', department: 'HR' },
-  { name: 'Sanjay Kumar', email: 'supervisor@bekem.com', password: 'Bekem@123', role: 'supervisor', department: 'Site' },
-  { name: 'Gopal Reddy', email: 'contractor@bekem.com', password: 'Bekem@123', role: 'contractor_supervisor', department: 'Contractors' },
+  { name: 'AFIOS Platform Admin', email: 'admin@afios.com', password: 'ChangeMe!Admin2026', role: 'admin', department: 'Platform' },
+  { name: 'Bekem Organization Admin', email: 'admin@bekem.com', password: DEMO_PASSWORD, role: 'org_admin', department: 'Executive' },
+  { name: 'Rajesh Kumar', email: 'ceo@bekem.com', password: DEMO_PASSWORD, role: 'executive', department: 'Executive' },
+  { name: 'Vikram Desai', email: 'coo@bekem.com', password: DEMO_PASSWORD, role: 'coo', department: 'Executive' },
+  { name: 'Priya Sharma', email: 'pm@bekem.com', password: DEMO_PASSWORD, role: 'project_manager', department: 'Projects' },
+  { name: 'Venkat Rao', email: 'site@bekem.com', password: DEMO_PASSWORD, role: 'site_engineer', department: 'Site' },
+  { name: 'Anil Reddy', email: 'procurement@bekem.com', password: DEMO_PASSWORD, role: 'procurement_manager', department: 'Procurement' },
+  { name: 'Ramesh Naidu', email: 'warehouse@bekem.com', password: DEMO_PASSWORD, role: 'warehouse_manager', department: 'Warehouse' },
+  { name: 'Suresh Goud', email: 'store@bekem.com', password: DEMO_PASSWORD, role: 'store_keeper', department: 'Warehouse' },
+  { name: 'Kiran Patel', email: 'equipment@bekem.com', password: DEMO_PASSWORD, role: 'equipment_manager', department: 'Assets' },
+  { name: 'Mahesh Singh', email: 'maintenance@bekem.com', password: DEMO_PASSWORD, role: 'maintenance_manager', department: 'Maintenance' },
+  { name: 'Arjun Nair', email: 'safety@bekem.com', password: DEMO_PASSWORD, role: 'safety_officer', department: 'Safety' },
+  { name: 'Meera Joshi', email: 'quality@bekem.com', password: DEMO_PASSWORD, role: 'quality_engineer', department: 'Quality' },
+  { name: 'Lakshmi Iyer', email: 'compliance@bekem.com', password: DEMO_PASSWORD, role: 'compliance_manager', department: 'Compliance' },
+  { name: 'Deepa Menon', email: 'finance@bekem.com', password: DEMO_PASSWORD, role: 'finance_manager', department: 'Finance' },
+  { name: 'Sunita Verma', email: 'hr@bekem.com', password: DEMO_PASSWORD, role: 'hr_manager', department: 'HR' },
+  { name: 'Sanjay Kumar', email: 'supervisor@bekem.com', password: DEMO_PASSWORD, role: 'supervisor', department: 'Site' },
+  { name: 'Gopal Reddy', email: 'contractor@bekem.com', password: DEMO_PASSWORD, role: 'contractor_supervisor', department: 'Contractors' },
 ] as const;
 
 export function roleCanAccess(role: string, path: string): boolean {
