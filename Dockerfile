@@ -10,5 +10,5 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
-EXPOSE 3001
+# Do not EXPOSE a fixed port — Railway sets PORT dynamically (often 5000+).
 CMD ["node", "dist/main"]

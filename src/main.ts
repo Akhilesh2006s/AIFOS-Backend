@@ -37,6 +37,11 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
+  // Root path for browser / Railway probes (Nest routes live under /api/v1).
+  app.getHttpAdapter().getInstance().get('/', (_req, res) => {
+    res.redirect(302, '/api/v1/health');
+  });
+
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.useGlobalPipes(
